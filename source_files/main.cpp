@@ -11,22 +11,27 @@
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 
+// GLM includes
+#include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/type_ptr.hpp>
+#include <glm/gtx/euler_angles.hpp>
+#include <glm/gtx/quaternion.hpp>
+
+
 // Assimp includes
 #include <assimp/cimport.h> // scene importer
 #include <assimp/scene.h> // collects data
 #include <assimp/postprocess.h> // various extra operations
 
-// Project includes
-#include "maths_funcs.h"
-
-#define NOMINMAX
+using namespace std;
 
 /*----------------------------------------------------------------------------
 MESH TO LOAD
 ----------------------------------------------------------------------------*/
 // this mesh is a dae file format but you should be able to use any other format too, obj is typically what is used
 // put the mesh in your project directory, or provide a filepath for it here
-#define MESH_NAME "C:/Users/ogradyra/source/repos/plane_rotate/plane_rotate/monkeyhead_smooth.dae"
+#define MESH_NAME "C:/Users/ogradyra/source/repos/rotate_plane/rotate_plane/plane2.obj"
 /*----------------------------------------------------------------------------
 ----------------------------------------------------------------------------*/
 
@@ -34,9 +39,9 @@ MESH TO LOAD
 typedef struct
 {
 	size_t mPointCount;
-	std::vector<vec3> mVertices;
-	std::vector<vec3> mNormals;
-	std::vector<vec2> mTextureCoords;
+	vector<glm::vec3> mVertices;
+	vector<glm::vec3> mNormals;
+	vector<glm::vec2> mTextureCoords;
 } ModelData;
 #pragma endregion SimpleTypes
 
@@ -47,11 +52,15 @@ GLuint shaderProgramID;
 
 ModelData mesh_data;
 unsigned int mesh_vao = 0;
-int width = 800;
-int height = 600;
+int width = 1200;
+int height = 1000;
 
 GLuint loc1, loc2, loc3;
-GLfloat rotate_y = 0.0f;
+
+GLfloat pitch = 0.0f, yaw = 0.0f, roll = 0.0f;
+GLfloat q_pitch = 0.0f, q_yaw = 0, q_roll = 0.0f; 
+
+bool q_flag = false, e_flag = true;
 
 
 #pragma region MESH LOADING
@@ -88,15 +97,15 @@ ModelData load_mesh(const char* file_name) {
 		for (unsigned int v_i = 0; v_i < mesh->mNumVertices; v_i++) {
 			if (mesh->HasPositions()) {
 				const aiVector3D* vp = &(mesh->mVertices[v_i]);
-				modelData.mVertices.push_back(vec3(vp->x, vp->y, vp->z));
+				modelData.mVertices.push_back(glm::vec3(vp->x, vp->y, vp->z));
 			}
 			if (mesh->HasNormals()) {
 				const aiVector3D* vn = &(mesh->mNormals[v_i]);
-				modelData.mNormals.push_back(vec3(vn->x, vn->y, vn->z));
+				modelData.mNormals.push_back(glm::vec3(vn->x, vn->y, vn->z));
 			}
 			if (mesh->HasTextureCoords(0)) {
 				const aiVector3D* vt = &(mesh->mTextureCoords[0][v_i]);
-				modelData.mTextureCoords.push_back(vec2(vt->x, vt->y));
+				modelData.mTextureCoords.push_back(glm::vec2(vt->x, vt->y));
 			}
 			if (mesh->HasTangentsAndBitangents()) {
 				/* You can extract tangents and bitangents here              */
@@ -182,8 +191,8 @@ GLuint CompileShaders()
 	}
 
 	// Create two shader objects, one for the vertex, and one for the fragment shader
-	AddShader(shaderProgramID, "/Users/ogradyra/source/repos/plane_rotate/plane_rotate/simpleVertexShader.txt", GL_VERTEX_SHADER);
-	AddShader(shaderProgramID, "/Users/ogradyra/source/repos/plane_rotate/plane_rotate/simpleFragmentShader.txt", GL_FRAGMENT_SHADER);
+	AddShader(shaderProgramID, "C:/Users/ogradyra/source/repos/rotate_plane/rotate_plane/simpleVertexShader.txt", GL_VERTEX_SHADER);
+	AddShader(shaderProgramID, "C:/Users/ogradyra/source/repos/rotate_plane/rotate_plane/simpleFragmentShader.txt", GL_FRAGMENT_SHADER);
 
 	GLint Success = 0;
 	GLchar ErrorLog[1024] = { '\0' };
@@ -235,11 +244,11 @@ void generateObjectBufferMesh() {
 
 	glGenBuffers(1, &vp_vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, vp_vbo);
-	glBufferData(GL_ARRAY_BUFFER, mesh_data.mPointCount * sizeof(vec3), &mesh_data.mVertices[0], GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, mesh_data.mPointCount * sizeof(glm::vec3), &mesh_data.mVertices[0], GL_STATIC_DRAW);
 	unsigned int vn_vbo = 0;
 	glGenBuffers(1, &vn_vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, vn_vbo);
-	glBufferData(GL_ARRAY_BUFFER, mesh_data.mPointCount * sizeof(vec3), &mesh_data.mNormals[0], GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, mesh_data.mPointCount * sizeof(glm::vec3), &mesh_data.mNormals[0], GL_STATIC_DRAW);
 
 	//	This is for texture coordinates which you don't currently need, so I have commented it out
 	//	unsigned int vt_vbo = 0;
@@ -280,31 +289,45 @@ void display() {
 	int view_mat_location = glGetUniformLocation(shaderProgramID, "view");
 	int proj_mat_location = glGetUniformLocation(shaderProgramID, "proj");
 
+	glm::mat4 view = glm::mat4(1.0);
+	glm::mat4 persp_proj = glm::perspective(45.0f, (float)width / (float)height, 0.1f, 1000.0f);
+	glm::mat4 model = glm::mat4(1.0);
 
 	// Root of the Hierarchy
-	mat4 view = identity_mat4();
-	mat4 persp_proj = perspective(45.0f, (float)width / (float)height, 0.1f, 1000.0f);
-	mat4 model = identity_mat4();
-	model = rotate_z_deg(model, rotate_y);
-	view = translate(view, vec3(0.0, 0.0, -10.0f));
+	glm::mat4 T = glm::mat4(1.0f);
+	glm::mat4 Rx = glm::mat4(1.0f);
+	glm::mat4 Ry = glm::mat4(1.0f);
+	glm::mat4 Rz = glm::mat4(1.0f);
+	glm::mat4 M = glm::mat4(1.0f);
+	T = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -15.0f)); // T is matrix to move triangle up 0.5 in y-direction
+
+	if (e_flag) {
+
+		// Euler Rotation
+		Rx = glm::rotate(glm::mat4(1.0f), pitch, glm::vec3(1.0f, 0.0f, 0.0f));
+		Ry = glm::rotate(glm::mat4(1.0f), yaw, glm::vec3(0.0f, 1.0f, 0.0f));
+		Rz = glm::rotate(glm::mat4(1.0f), roll, glm::vec3(0.0f, 0.0f, 1.0f));
+		M = T * Rx * Ry * Rz;
+	}
+	
+	else if (q_flag) {
+
+		// Quaternion Rotation
+		glm::quat p_quat = glm::angleAxis(glm::radians(q_pitch), glm::vec3(1.0f, 0.0f, 0.0f));
+		glm::quat y_quat = glm::angleAxis(glm::radians(q_yaw), glm::vec3(0.0f, 1.0f, 0.0f));
+		glm::quat r_quat = glm::angleAxis(glm::radians(q_roll), glm::vec3(0.0f, 0.0f, 1.0f));
+		
+
+		glm::quat quaternion = p_quat * y_quat * r_quat;
+
+		M = T * glm::toMat4(quaternion);
+	}
+	
 
 	// update uniforms & draw
-	glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, persp_proj.m);
-	glUniformMatrix4fv(view_mat_location, 1, GL_FALSE, view.m);
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, model.m);
-	glDrawArrays(GL_TRIANGLES, 0, mesh_data.mPointCount);
-
-	// Set up the child matrix
-	mat4 modelChild = identity_mat4();
-	modelChild = rotate_z_deg(modelChild, 180);
-	modelChild = rotate_y_deg(modelChild, rotate_y);
-	modelChild = translate(modelChild, vec3(0.0f, 1.9f, 0.0f));
-
-	// Apply the root matrix to the child matrix
-	modelChild = model * modelChild;
-
-	// Update the appropriate uniform and draw the mesh again
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, modelChild.m);
+	glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, glm::value_ptr(persp_proj));
+	glUniformMatrix4fv(view_mat_location, 1, GL_FALSE, glm::value_ptr(view));
+	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(M));
 	glDrawArrays(GL_TRIANGLES, 0, mesh_data.mPointCount);
 
 	glutSwapBuffers();
@@ -321,8 +344,8 @@ void updateScene() {
 	last_time = curr_time;
 
 	// Rotate the model slowly around the y axis at 20 degrees per second
-	rotate_y += 20.0f * delta;
-	rotate_y = fmodf(rotate_y, 360.0f);
+	/*rotate_y += 20.0f * delta;
+	rotate_y = fmodf(rotate_y, 360.0f);*/
 
 	// Draw the next frame
 	glutPostRedisplay();
@@ -340,8 +363,46 @@ void init()
 
 // Placeholder code for the keypress
 void keypress(unsigned char key, int x, int y) {
-	if (key == 'x') {
-		//Translate the base, etc.
+	switch (key) {
+
+		// quaternion rotation
+		case 'q':
+			q_flag = true;
+			e_flag = false;
+
+			if (key == 'p') {
+				q_pitch += 0.2f;
+			}
+
+			else if (key == 'r') {
+				q_roll += 0.2f;
+			}
+
+			else if (key == 'y') {
+				q_yaw += 0.2f;
+			}
+
+			break;
+
+		// euler rotation
+		case 'e':
+			e_flag = true;
+			q_flag = false;
+
+			if (key == 'p') {
+				pitch += 0.2f;
+			}
+
+			else if (key == 'r') {
+				roll += 0.2f;
+			}
+
+			else if (key == 'y') {
+				yaw += 0.2f;
+			}
+
+			break;
+
 	}
 }
 
@@ -351,7 +412,7 @@ int main(int argc, char** argv) {
 	glutInit(&argc, argv);
 	glutInitDisplayMode(GLUT_DOUBLE | GLUT_RGB);
 	glutInitWindowSize(width, height);
-	glutCreateWindow("Hello Triangle");
+	glutCreateWindow("Rotating Plane");
 
 	// Tell glut where the display function is
 	glutDisplayFunc(display);
