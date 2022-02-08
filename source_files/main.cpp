@@ -31,7 +31,8 @@ MESH TO LOAD
 ----------------------------------------------------------------------------*/
 // this mesh is a dae file format but you should be able to use any other format too, obj is typically what is used
 // put the mesh in your project directory, or provide a filepath for it here
-#define MESH_NAME "C:/Users/ogradyra/source/repos/rotate_plane/rotate_plane/plane2.obj"
+#define PLANE "U:/animation_proj/plane_rotation/plane_rotation/plane.obj"
+#define PROPELLER "U:/animation_proj/plane_rotation/plane_rotation/propeller.obj"
 /*----------------------------------------------------------------------------
 ----------------------------------------------------------------------------*/
 
@@ -191,8 +192,8 @@ GLuint CompileShaders()
 	}
 
 	// Create two shader objects, one for the vertex, and one for the fragment shader
-	AddShader(shaderProgramID, "C:/Users/ogradyra/source/repos/rotate_plane/rotate_plane/simpleVertexShader.txt", GL_VERTEX_SHADER);
-	AddShader(shaderProgramID, "C:/Users/ogradyra/source/repos/rotate_plane/rotate_plane/simpleFragmentShader.txt", GL_FRAGMENT_SHADER);
+	AddShader(shaderProgramID, "U:/animation_proj/plane_rotation/plane_rotation/simpleVertexShader.txt", GL_VERTEX_SHADER);
+	AddShader(shaderProgramID, "U:/animation_proj/plane_rotation/plane_rotation/simpleFragmentShader.txt", GL_FRAGMENT_SHADER);
 
 	GLint Success = 0;
 	GLchar ErrorLog[1024] = { '\0' };
@@ -370,35 +371,44 @@ void keypress(unsigned char key, int x, int y) {
 			q_flag = true;
 			e_flag = false;
 
-			if (key == 'p') {
-				q_pitch += 0.2f;
-			}
-
-			else if (key == 'r') {
-				q_roll += 0.2f;
-			}
-
-			else if (key == 'y') {
-				q_yaw += 0.2f;
-			}
-
-			break;
+		break;
 
 		// euler rotation
 		case 'e':
 			e_flag = true;
 			q_flag = false;
 
-			if (key == 'p') {
+		break;
+
+		case 'p':
+			if (e_flag) {
 				pitch += 0.2f;
 			}
 
-			else if (key == 'r') {
+			else {
+				q_pitch += 2.0f;
+			}
+
+			break;
+
+		case 'r':
+			if (e_flag) {
 				roll += 0.2f;
 			}
 
-			else if (key == 'y') {
+			else {
+				q_roll += 2.0f;
+			}
+
+			break;
+
+		case 'y':
+			if (e_flag) {
 				yaw += 0.2f;
+			}
+
+			else {
+				q_yaw += 2.0f;
 			}
 
 			break;
