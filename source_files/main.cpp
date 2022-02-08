@@ -59,7 +59,7 @@ int height = 1000;
 GLuint loc1, loc2, loc3;
 
 GLfloat pitch = 0.0f, yaw = 0.0f, roll = 0.0f;
-GLfloat q_pitch = 0.0f, q_yaw = 0, q_roll = 0.0f; 
+GLfloat q_pitch = 0.0f, q_yaw = 0, q_roll = 0.0f;
 
 bool q_flag = false, e_flag = true;
 
@@ -78,9 +78,9 @@ ModelData load_mesh(const char* file_name) {
 	/* are offset from the origin. This is pre-transform them so      */
 	/* they're in the right position.                                 */
 	const aiScene* scene = aiImportFile(
-		file_name, 
+		file_name,
 		aiProcess_Triangulate | aiProcess_PreTransformVertices
-	); 
+	);
 
 	if (!scene) {
 		fprintf(stderr, "ERROR: reading mesh %s\n", file_name);
@@ -232,12 +232,12 @@ GLuint CompileShaders()
 void generateObjectBufferMesh() {
 	/*----------------------------------------------------------------------------
 	LOAD MESH HERE AND COPY INTO BUFFERS
-	----------------------------------------------------------------------------*/
+	---------------------------------------------S-------------------------------*/
 
 	//Note: you may get an error "vector subscript out of range" if you are using this code for a mesh that doesnt have positions and normals
 	//Might be an idea to do a check for that before generating and binding the buffer.
 
-	mesh_data = load_mesh(MESH_NAME);
+	mesh_data = load_mesh(PLANE);
 	unsigned int vp_vbo = 0;
 	loc1 = glGetAttribLocation(shaderProgramID, "vertex_position");
 	loc2 = glGetAttribLocation(shaderProgramID, "vertex_normal");
@@ -310,20 +310,20 @@ void display() {
 		Rz = glm::rotate(glm::mat4(1.0f), roll, glm::vec3(0.0f, 0.0f, 1.0f));
 		M = T * Rx * Ry * Rz;
 	}
-	
+
 	else if (q_flag) {
 
 		// Quaternion Rotation
 		glm::quat p_quat = glm::angleAxis(glm::radians(q_pitch), glm::vec3(1.0f, 0.0f, 0.0f));
 		glm::quat y_quat = glm::angleAxis(glm::radians(q_yaw), glm::vec3(0.0f, 1.0f, 0.0f));
 		glm::quat r_quat = glm::angleAxis(glm::radians(q_roll), glm::vec3(0.0f, 0.0f, 1.0f));
-		
+
 
 		glm::quat quaternion = p_quat * y_quat * r_quat;
 
 		M = T * glm::toMat4(quaternion);
 	}
-	
+
 
 	// update uniforms & draw
 	glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, glm::value_ptr(persp_proj));
@@ -367,51 +367,51 @@ void keypress(unsigned char key, int x, int y) {
 	switch (key) {
 
 		// quaternion rotation
-		case 'q':
-			q_flag = true;
-			e_flag = false;
+	case 'q':
+		q_flag = true;
+		e_flag = false;
 
 		break;
 
 		// euler rotation
-		case 'e':
-			e_flag = true;
-			q_flag = false;
+	case 'e':
+		e_flag = true;
+		q_flag = false;
 
 		break;
 
-		case 'p':
-			if (e_flag) {
-				pitch += 0.2f;
-			}
+	case 'p':
+		if (e_flag) {
+			pitch += 0.2f;
+		}
 
-			else {
-				q_pitch += 2.0f;
-			}
+		else {
+			q_pitch += 2.0f;
+		}
 
-			break;
+		break;
 
-		case 'r':
-			if (e_flag) {
-				roll += 0.2f;
-			}
+	case 'r':
+		if (e_flag) {
+			roll += 0.2f;
+		}
 
-			else {
-				q_roll += 2.0f;
-			}
+		else {
+			q_roll += 2.0f;
+		}
 
-			break;
+		break;
 
-		case 'y':
-			if (e_flag) {
-				yaw += 0.2f;
-			}
+	case 'y':
+		if (e_flag) {
+			yaw += 0.2f;
+		}
 
-			else {
-				q_yaw += 2.0f;
-			}
+		else {
+			q_yaw += 2.0f;
+		}
 
-			break;
+		break;
 
 	}
 }
