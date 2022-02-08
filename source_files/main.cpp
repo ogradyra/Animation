@@ -56,7 +56,13 @@ unsigned int mesh_vao = 0;
 int width = 1200;
 int height = 1000;
 
+const GLuint j = 4;
+GLuint VAO[j], VBO[j * 2];
+std::vector < ModelData > meshData;
+std::vector < const char* > dataArray;
+
 GLuint loc1, loc2, loc3;
+GLfloat rotate_y = 0.0f;
 
 GLfloat pitch = 0.0f, yaw = 0.0f, roll = 0.0f;
 GLfloat q_pitch = 0.0f, q_yaw = 0, q_roll = 0.0f;
@@ -229,48 +235,50 @@ GLuint CompileShaders()
 
 // VBO Functions - click on + to expand
 #pragma region VBO_FUNCTIONS
-void generateObjectBufferMesh() {
+void generateObjectBufferMesh(std::vector < const char* > dataArray) {
 	/*----------------------------------------------------------------------------
 	LOAD MESH HERE AND COPY INTO BUFFERS
-	---------------------------------------------S-------------------------------*/
+	----------------------------------------------------------------------------*/
 
-	//Note: you may get an error "vector subscript out of range" if you are using this code for a mesh that doesnt have positions and normals
-	//Might be an idea to do a check for that before generating and binding the buffer.
-
-	mesh_data = load_mesh(PLANE);
-	unsigned int vp_vbo = 0;
 	loc1 = glGetAttribLocation(shaderProgramID, "vertex_position");
 	loc2 = glGetAttribLocation(shaderProgramID, "vertex_normal");
-	loc3 = glGetAttribLocation(shaderProgramID, "vertex_texture");
+	//loc3 = glGetAttribLocation(shaderProgramID, "vertex_texture");
+	int counter = 0;
+	for (int i = 0; i < dataArray.size(); i++) {
+		mesh_data = load_mesh(dataArray[i]);
+		meshData.push_back(mesh_data);
 
-	glGenBuffers(1, &vp_vbo);
-	glBindBuffer(GL_ARRAY_BUFFER, vp_vbo);
-	glBufferData(GL_ARRAY_BUFFER, mesh_data.mPointCount * sizeof(glm::vec3), &mesh_data.mVertices[0], GL_STATIC_DRAW);
-	unsigned int vn_vbo = 0;
-	glGenBuffers(1, &vn_vbo);
-	glBindBuffer(GL_ARRAY_BUFFER, vn_vbo);
-	glBufferData(GL_ARRAY_BUFFER, mesh_data.mPointCount * sizeof(glm::vec3), &mesh_data.mNormals[0], GL_STATIC_DRAW);
+		glGenBuffers(1, &VBO[counter]);
+		glBindBuffer(GL_ARRAY_BUFFER, VBO[counter]);
+		glBufferData(GL_ARRAY_BUFFER, mesh_data.mPointCount * sizeof(glm::vec3), &mesh_data.mVertices[0], GL_STATIC_DRAW);
 
-	//	This is for texture coordinates which you don't currently need, so I have commented it out
-	//	unsigned int vt_vbo = 0;
-	//	glGenBuffers (1, &vt_vbo);
-	//	glBindBuffer (GL_ARRAY_BUFFER, vt_vbo);
-	//	glBufferData (GL_ARRAY_BUFFER, monkey_head_data.mTextureCoords * sizeof (vec2), &monkey_head_data.mTextureCoords[0], GL_STATIC_DRAW);
+		glGenBuffers(1, &VBO[counter + 1]);
+		glBindBuffer(GL_ARRAY_BUFFER, VBO[counter + 1]);
+		glBufferData(GL_ARRAY_BUFFER, mesh_data.mPointCount * sizeof(glm::vec3), &mesh_data.mNormals[0], GL_STATIC_DRAW);
 
-	unsigned int vao = 0;
-	glBindVertexArray(vao);
+		//	This is for texture coordinates which you don't currently need, so I have commented it out
+		//	unsigned int vt_vbo = 0;
+		//	glGenBuffers (1, &vt_vbo);
+		//	glBindBuffer (GL_ARRAY_BUFFER, vt_vbo);
+		//	glBufferData (GL_ARRAY_BUFFER, monkey_head_data.mTextureCoords * sizeof (vec2), &monkey_head_data.mTextureCoords[0], GL_STATIC_DRAW);
 
-	glEnableVertexAttribArray(loc1);
-	glBindBuffer(GL_ARRAY_BUFFER, vp_vbo);
-	glVertexAttribPointer(loc1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
-	glEnableVertexAttribArray(loc2);
-	glBindBuffer(GL_ARRAY_BUFFER, vn_vbo);
-	glVertexAttribPointer(loc2, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+		glGenVertexArrays(1, &VAO[i]);
+		glBindVertexArray(VAO[i]);
 
-	//	This is for texture coordinates which you don't currently need, so I have commented it out
-	//	glEnableVertexAttribArray (loc3);
-	//	glBindBuffer (GL_ARRAY_BUFFER, vt_vbo);
-	//	glVertexAttribPointer (loc3, 2, GL_FLOAT, GL_FALSE, 0, NULL);
+		glEnableVertexAttribArray(loc1);
+		glBindBuffer(GL_ARRAY_BUFFER, VBO[counter]);
+		glVertexAttribPointer(loc1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+
+		glEnableVertexAttribArray(loc2);
+		glBindBuffer(GL_ARRAY_BUFFER, VBO[counter + 1]);
+		glVertexAttribPointer(loc2, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+
+		//	This is for texture coordinates which you don't currently need, so I have commented it out
+		//	glEnableVertexAttribArray (loc3);
+		//	glBindBuffer (GL_ARRAY_BUFFER, vt_vbo);
+		//	glVertexAttribPointer (loc3, 2, GL_FLOAT, GL_FALSE, 0, NULL);
+		counter += 2;
+	}
 }
 #pragma endregion VBO_FUNCTIONS
 
@@ -292,7 +300,10 @@ void display() {
 
 	glm::mat4 view = glm::mat4(1.0);
 	glm::mat4 persp_proj = glm::perspective(45.0f, (float)width / (float)height, 0.1f, 1000.0f);
-	glm::mat4 model = glm::mat4(1.0);
+	glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, glm::value_ptr(persp_proj));
+	glUniformMatrix4fv(view_mat_location, 1, GL_FALSE, glm::value_ptr(view));
+	
+	glBindVertexArray(VAO[0]);
 
 	// Root of the Hierarchy
 	glm::mat4 T = glm::mat4(1.0f);
@@ -311,7 +322,7 @@ void display() {
 		M = T * Rx * Ry * Rz;
 	}
 
-	else if (q_flag) {
+	else  {
 
 		// Quaternion Rotation
 		glm::quat p_quat = glm::angleAxis(glm::radians(q_pitch), glm::vec3(1.0f, 0.0f, 0.0f));
@@ -326,10 +337,22 @@ void display() {
 
 
 	// update uniforms & draw
-	glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, glm::value_ptr(persp_proj));
-	glUniformMatrix4fv(view_mat_location, 1, GL_FALSE, glm::value_ptr(view));
 	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(M));
-	glDrawArrays(GL_TRIANGLES, 0, mesh_data.mPointCount);
+	glDrawArrays(GL_TRIANGLES, 0, meshData[0].mPointCount);
+
+
+	// Propeller
+	glBindVertexArray(VAO[1]);
+
+	glm::mat4 propeller = glm::mat4(1.0f);
+	//propeller = glm::translate(propeller, glm::vec3(0.0f, 0.0f, 0.0f));
+	propeller = glm::rotate(glm::mat4(1.0f), rotate_y, glm::vec3(1.0f, 0.0f, 0.0f));
+
+	propeller = M * propeller;
+	//glUniform3fv(glGetUniformLocation(shaderProgramID, "color"), 1, &propellerColor[0]);
+	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(propeller));
+	//glDrawArrays(GL_TRIANGLES, 0, meshData[1].mPointCount);
+
 
 	glutSwapBuffers();
 }
@@ -345,8 +368,8 @@ void updateScene() {
 	last_time = curr_time;
 
 	// Rotate the model slowly around the y axis at 20 degrees per second
-	/*rotate_y += 20.0f * delta;
-	rotate_y = fmodf(rotate_y, 360.0f);*/
+	rotate_y += 20.0f * delta;
+	rotate_y = fmodf(rotate_y, 360.0f);
 
 	// Draw the next frame
 	glutPostRedisplay();
@@ -358,7 +381,10 @@ void init()
 	// Set up the shaders
 	GLuint shaderProgramID = CompileShaders();
 	// load mesh into a vertex buffer array
-	generateObjectBufferMesh();
+	dataArray.push_back(PLANE);
+	dataArray.push_back(PROPELLER);
+	// load mesh into a vertex buffer array
+	generateObjectBufferMesh(dataArray);
 
 }
 
