@@ -1,3 +1,5 @@
+
+
 // Windows includes (For Time, IO, etc.)
 #include <windows.h>
 #include <mmsystem.h>
@@ -32,8 +34,7 @@ MESH TO LOAD
 // this mesh is a dae file format but you should be able to use any other format too, obj is typically what is used
 // put the mesh in your project directory, or provide a filepath for it here
 #define PLANE "U:/animation_proj/plane_rotation/plane_rotation/plane.obj"
-#define PROPELLER "U:/animation_proj/plane_rotation/plane_rotation/propeller.obj"
-#define MONKEY "U:/animation_proj/plane_rotation/plane_rotation/monkeyhead_smooth.dae"
+#define PROPELLER "U:/animation_proj/plane_rotation/plane_rotation/prop.obj"
 /*----------------------------------------------------------------------------
 ----------------------------------------------------------------------------*/
 
@@ -52,21 +53,12 @@ size_t mPointCount = 0;
 using namespace std;
 GLuint shaderProgramID;
 
-// camera stuff
-glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 0.0f);
-glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -30.0f);
-glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
-
-int projType = 0;
-float fov = 45.0f;
-
-ModelData plane, propeller;
-GLuint vao0, vao1;
+ModelData mesh_data;
 unsigned int mesh_vao = 0;
 int width = 1200;
 int height = 1000;
 
-//GLuint loc1, loc2, loc3;
+GLuint loc1, loc2, loc3;
 
 GLfloat pitch = 0.0f, yaw = 0.0f, roll = 0.0f, rotate_y = 0.0f;
 GLfloat q_pitch = 0.0f, q_yaw = 0, q_roll = 0.0f;
@@ -239,43 +231,48 @@ GLuint CompileShaders()
 
 // VBO Functions - click on + to expand
 #pragma region VBO_FUNCTIONS
-GLuint generateObjectBufferMesh(ModelData mesh_data) {
+void generateObjectBufferMesh() {
 	/*----------------------------------------------------------------------------
 	LOAD MESH HERE AND COPY INTO BUFFERS
-	----------------------------------------------------------------------------*/
-	GLuint vao = 0;
+	---------------------------------------------S-------------------------------*/
 
+	//Note: you may get an error "vector subscript out of range" if you are using this code for a mesh that doesnt have positions and normals
+	//Might be an idea to do a check for that before generating and binding the buffer.
+
+	mesh_data = load_mesh(PROPELLER);
 	unsigned int vp_vbo = 0;
-	unsigned int vn_vbo = 0;
-
-	GLuint loc1 = 0, loc2 = 0, loc3 = 0;
-
-	//mesh 1
 	loc1 = glGetAttribLocation(shaderProgramID, "vertex_position");
 	loc2 = glGetAttribLocation(shaderProgramID, "vertex_normal");
 	loc3 = glGetAttribLocation(shaderProgramID, "vertex_texture");
 
-	glGenVertexArrays(1, &vao);
-	glBindVertexArray(vao);
-
 	glGenBuffers(1, &vp_vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, vp_vbo);
 	glBufferData(GL_ARRAY_BUFFER, mesh_data.mPointCount * sizeof(glm::vec3), &mesh_data.mVertices[0], GL_STATIC_DRAW);
-
+	unsigned int vn_vbo = 0;
 	glGenBuffers(1, &vn_vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, vn_vbo);
 	glBufferData(GL_ARRAY_BUFFER, mesh_data.mPointCount * sizeof(glm::vec3), &mesh_data.mNormals[0], GL_STATIC_DRAW);
 
+	//	This is for texture coordinates which you don't currently need, so I have commented it out
+	//	unsigned int vt_vbo = 0;
+	//	glGenBuffers (1, &vt_vbo);
+	//	glBindBuffer (GL_ARRAY_BUFFER, vt_vbo);
+	//	glBufferData (GL_ARRAY_BUFFER, monkey_head_data.mTextureCoords * sizeof (vec2), &monkey_head_data.mTextureCoords[0], GL_STATIC_DRAW);
+
+	unsigned int vao = 0;
+	glBindVertexArray(vao);
+
 	glEnableVertexAttribArray(loc1);
 	glBindBuffer(GL_ARRAY_BUFFER, vp_vbo);
 	glVertexAttribPointer(loc1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
-
 	glEnableVertexAttribArray(loc2);
 	glBindBuffer(GL_ARRAY_BUFFER, vn_vbo);
 	glVertexAttribPointer(loc2, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 
-	return vao;
-
+	//	This is for texture coordinates which you don't currently need, so I have commented it out
+	//	glEnableVertexAttribArray (loc3);
+	//	glBindBuffer (GL_ARRAY_BUFFER, vt_vbo);
+	//	glVertexAttribPointer (loc3, 2, GL_FLOAT, GL_FALSE, 0, NULL);
 }
 #pragma endregion VBO_FUNCTIONS
 
@@ -287,22 +284,6 @@ void display() {
 	glDepthFunc(GL_LESS); // depth-testing interprets a smaller value as "closer"
 	glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-	//setting up projection matrix
-	glm::mat4 persp_proj = glm::perspective(glm::radians(fov), (float)width / (float)height, 1.0f, 100.0f);
-	if (projType == 0) {
-		persp_proj = glm::perspective(45.0f, (float)width / (float)height, 1.0f, 100.0f);
-	}
-
-	else if (projType == 1) {
-		persp_proj = glm::ortho(-16.0f, 16.0f, -12.0f, 12.0f, 1.0f, 100.0f);
-	}
-
-	//setting up camera
-	//lookAt(position, target, up vector);
-	glm::mat4 view = glm::mat4(1.0f);
-	view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-
 	glUseProgram(shaderProgramID);
 
 
@@ -311,10 +292,9 @@ void display() {
 	int view_mat_location = glGetUniformLocation(shaderProgramID, "view");
 	int proj_mat_location = glGetUniformLocation(shaderProgramID, "proj");
 
-	//glm::mat4 view = glm::mat4(1.0);
-	//glm::mat4 persp_proj = glm::perspective(45.0f, (float)width / (float)height, 0.1f, 1000.0f);
-	glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, glm::value_ptr(persp_proj));
-	glUniformMatrix4fv(view_mat_location, 1, GL_FALSE, glm::value_ptr(view));
+	glm::mat4 view = glm::mat4(1.0);
+	glm::mat4 persp_proj = glm::perspective(45.0f, (float)width / (float)height, 0.1f, 1000.0f);
+	glm::mat4 model = glm::mat4(1.0);
 
 	// Root of the Hierarchy
 	glm::mat4 T = glm::mat4(1.0f);
@@ -346,31 +326,13 @@ void display() {
 		M = T * glm::toMat4(quaternion);
 	}
 
-	M = glm::mat4(1.0f);
-
-
+	T = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -15.0f));
+	M = T * glm::rotate(glm::mat4(1.0f), rotate_y, glm::vec3(0.0f, 0.0f, 1.0f));
 	// update uniforms & draw
+	glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, glm::value_ptr(persp_proj));
+	glUniformMatrix4fv(view_mat_location, 1, GL_FALSE, glm::value_ptr(view));
 	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(M));
-	glBindVertexArray(vao0);
-	glDrawArrays(GL_TRIANGLES, 0, plane.mPointCount);
-
-	// Propeller
-	glm::mat4 t = glm::mat4(1.0f);
-	glm::mat4 r = glm::mat4(1.0f);
-	glm::mat4 m = glm::mat4(1.0f);
-
-	r = glm::rotate(glm::mat4(1.0f), rotate_y, glm::vec3(1.0f, 0.0f, 0.0f));
-	m = glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.0f, 0.0f));
-
-	M = glm::translate(glm::mat4(1.0f), glm::vec3(10.0f, 0.0f, 0.0f));
-
-	// update uniforms & draw
-	glBindVertexArray(vao1);
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(M));
-	//glBindVertexArray(vao1);
-	glDrawArrays(GL_TRIANGLES, 0, propeller.mPointCount);
-
-
+	glDrawArrays(GL_TRIANGLES, 0, mesh_data.mPointCount);
 
 	glutSwapBuffers();
 }
@@ -386,29 +348,20 @@ void updateScene() {
 	last_time = curr_time;
 
 	// Rotate the model slowly around the y axis at 20 degrees per second
-	/*rotate_y += 20.0f * delta;
-	rotate_y = fmodf(rotate_y, 360.0f);*/
+	rotate_y += 2.0f * delta;
+	rotate_y = fmodf(rotate_y, 360.0f);
 
 	// Draw the next frame
 	glutPostRedisplay();
 }
 
 
-
 void init()
 {
 	// Set up the shaders
-	shaderProgramID = CompileShaders();
-	
+	GLuint shaderProgramID = CompileShaders();
 	// load mesh into a vertex buffer array
-	plane = load_mesh(PLANE);
-	//glGenVertexArrays(1, &vao0);
-	vao0 = generateObjectBufferMesh(plane);
-
-	propeller = load_mesh(PLANE);
-	//glGenVertexArrays(1, &vao1);
-	vao1 = generateObjectBufferMesh(propeller);
-	cout << vao1;
+	generateObjectBufferMesh();
 
 }
 
@@ -463,33 +416,6 @@ void keypress(unsigned char key, int x, int y) {
 
 		break;
 
-	// camera movement
-	case 'i':
-		projType = 0;
-		break;
-	case 'o':
-		projType = 1;
-		break;
-	case 'z':
-		cameraPos += glm::vec3(0.0f, 0.0f, 2.0f);
-		break;
-	case 'x':
-		cameraPos -= glm::vec3(0.0f, 0.0f, 2.0f);
-		break;
-	case 'w':
-		cameraPos += glm::vec3(0.0f, 2.0f, 0.0f);
-		break;
-	case 's':
-		cameraPos -= glm::vec3(0.0f, 2.0f, 0.0f);
-		break;
-	case 'a':
-		cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp));
-		break;
-	case 'd':
-		cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp));
-		break;
-	
-
 	}
 }
 
@@ -519,3 +445,4 @@ int main(int argc, char** argv) {
 	glutMainLoop();
 	return 0;
 }
+
