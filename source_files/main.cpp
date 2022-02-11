@@ -8,6 +8,7 @@
 #include <stdio.h>
 #include <math.h>
 #include <vector> // STL dynamic memory.
+#include <fstream>
 
 // OpenGL includes
 #include <GL/glew.h>
@@ -33,7 +34,7 @@ MESH TO LOAD
 ----------------------------------------------------------------------------*/
 // this mesh is a dae file format but you should be able to use any other format too, obj is typically what is used
 // put the mesh in your project directory, or provide a filepath for it here
-#define PLANE "U:/animation_proj/plane_rotation/plane_rotation/plane.obj"
+#define PLANE "U:/animation_proj/plane_rotation/plane_rotation/full_plane.obj"
 #define PROPELLER "U:/animation_proj/plane_rotation/plane_rotation/prop.obj"
 /*----------------------------------------------------------------------------
 ----------------------------------------------------------------------------*/
@@ -53,8 +54,9 @@ size_t mPointCount = 0;
 using namespace std;
 GLuint shaderProgramID;
 
-ModelData mesh_data;
-unsigned int mesh_vao = 0;
+ModelData plane, prop;
+unsigned int vao0 = 0, vao1 = 0;
+
 int width = 1200;
 int height = 1000;
 
@@ -64,6 +66,17 @@ GLfloat pitch = 0.0f, yaw = 0.0f, roll = 0.0f, rotate_y = 0.0f;
 GLfloat q_pitch = 0.0f, q_yaw = 0, q_roll = 0.0f;
 
 bool q_flag = false, e_flag = true;
+
+// camera stuff
+glm::vec3 cameraPos = glm::vec3(0.0f, 0.0f, 0.0f);
+glm::vec3 cameraFront = glm::vec3(0.0f, 0.0f, -30.0f);
+glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+
+int projType = 0;
+float fov = 45.0f;
+
+glm::mat4 r_euler;
+glm::mat4 rot_quat;
 
 
 #pragma region MESH LOADING
@@ -231,16 +244,19 @@ GLuint CompileShaders()
 
 // VBO Functions - click on + to expand
 #pragma region VBO_FUNCTIONS
-void generateObjectBufferMesh() {
+GLuint generateObjectBufferMesh(ModelData mesh_data) {
 	/*----------------------------------------------------------------------------
 	LOAD MESH HERE AND COPY INTO BUFFERS
-	---------------------------------------------S-------------------------------*/
+	----------------------------------------------------------------------------*/
 
 	//Note: you may get an error "vector subscript out of range" if you are using this code for a mesh that doesnt have positions and normals
 	//Might be an idea to do a check for that before generating and binding the buffer.
+	GLuint vao;
 
-	mesh_data = load_mesh(PROPELLER);
 	unsigned int vp_vbo = 0;
+	unsigned int vn_vbo = 0;
+
+	//mesh 1
 	loc1 = glGetAttribLocation(shaderProgramID, "vertex_position");
 	loc2 = glGetAttribLocation(shaderProgramID, "vertex_normal");
 	loc3 = glGetAttribLocation(shaderProgramID, "vertex_texture");
@@ -248,31 +264,25 @@ void generateObjectBufferMesh() {
 	glGenBuffers(1, &vp_vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, vp_vbo);
 	glBufferData(GL_ARRAY_BUFFER, mesh_data.mPointCount * sizeof(glm::vec3), &mesh_data.mVertices[0], GL_STATIC_DRAW);
-	unsigned int vn_vbo = 0;
+
 	glGenBuffers(1, &vn_vbo);
 	glBindBuffer(GL_ARRAY_BUFFER, vn_vbo);
 	glBufferData(GL_ARRAY_BUFFER, mesh_data.mPointCount * sizeof(glm::vec3), &mesh_data.mNormals[0], GL_STATIC_DRAW);
 
-	//	This is for texture coordinates which you don't currently need, so I have commented it out
-	//	unsigned int vt_vbo = 0;
-	//	glGenBuffers (1, &vt_vbo);
-	//	glBindBuffer (GL_ARRAY_BUFFER, vt_vbo);
-	//	glBufferData (GL_ARRAY_BUFFER, monkey_head_data.mTextureCoords * sizeof (vec2), &monkey_head_data.mTextureCoords[0], GL_STATIC_DRAW);
-
-	unsigned int vao = 0;
+	glGenVertexArrays(1, &vao);
 	glBindVertexArray(vao);
 
 	glEnableVertexAttribArray(loc1);
 	glBindBuffer(GL_ARRAY_BUFFER, vp_vbo);
 	glVertexAttribPointer(loc1, 3, GL_FLOAT, GL_FALSE, 0, NULL);
+
 	glEnableVertexAttribArray(loc2);
 	glBindBuffer(GL_ARRAY_BUFFER, vn_vbo);
 	glVertexAttribPointer(loc2, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 
-	//	This is for texture coordinates which you don't currently need, so I have commented it out
-	//	glEnableVertexAttribArray (loc3);
-	//	glBindBuffer (GL_ARRAY_BUFFER, vt_vbo);
-	//	glVertexAttribPointer (loc3, 2, GL_FLOAT, GL_FALSE, 0, NULL);
+	return vao;
+
+
 }
 #pragma endregion VBO_FUNCTIONS
 
@@ -284,6 +294,23 @@ void display() {
 	glDepthFunc(GL_LESS); // depth-testing interprets a smaller value as "closer"
 	glClearColor(0.5f, 0.5f, 0.5f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	//setting up projection matrix
+	glm::mat4 persp_proj = glm::perspective(glm::radians(fov), (float)width / (float)height, 1.0f, 100.0f);
+	if (projType == 0) {
+		persp_proj = glm::perspective(45.0f, (float)width / (float)height, 1.0f, 100.0f);
+	}
+
+	else if (projType == 1) {
+		persp_proj = glm::ortho(-16.0f, 16.0f, -12.0f, 12.0f, 1.0f, 100.0f);
+	}
+
+	//setting up camera
+	//lookAt(position, target, up vector);
+	glm::mat4 view = glm::mat4(1.0f);
+	view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
+
+
 	glUseProgram(shaderProgramID);
 
 
@@ -292,17 +319,18 @@ void display() {
 	int view_mat_location = glGetUniformLocation(shaderProgramID, "view");
 	int proj_mat_location = glGetUniformLocation(shaderProgramID, "proj");
 
-	glm::mat4 view = glm::mat4(1.0);
-	glm::mat4 persp_proj = glm::perspective(45.0f, (float)width / (float)height, 0.1f, 1000.0f);
+	//glm::mat4 view = glm::mat4(1.0);
+	//glm::mat4 persp_proj = glm::perspective(45.0f, (float)width / (float)height, 0.1f, 1000.0f);
 	glm::mat4 model = glm::mat4(1.0);
 
 	// Root of the Hierarchy
-	glm::mat4 T = glm::mat4(1.0f);
 	glm::mat4 Rx = glm::mat4(1.0f);
 	glm::mat4 Ry = glm::mat4(1.0f);
 	glm::mat4 Rz = glm::mat4(1.0f);
+	glm::mat4 T = glm::mat4(1.0f);
 	glm::mat4 M = glm::mat4(1.0f);
 	T = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -15.0f)); // T is matrix to move triangle up 0.5 in y-direction
+
 
 	if (e_flag) {
 
@@ -310,7 +338,10 @@ void display() {
 		Rx = glm::rotate(glm::mat4(1.0f), pitch, glm::vec3(1.0f, 0.0f, 0.0f));
 		Ry = glm::rotate(glm::mat4(1.0f), yaw, glm::vec3(0.0f, 1.0f, 0.0f));
 		Rz = glm::rotate(glm::mat4(1.0f), roll, glm::vec3(0.0f, 0.0f, 1.0f));
-		M = T * Rx * Ry * Rz;
+		r_euler = Rx * Ry * Rz;
+
+		M = T * r_euler;
+
 	}
 
 	else if (q_flag) {
@@ -320,19 +351,22 @@ void display() {
 		glm::quat y_quat = glm::angleAxis(glm::radians(q_yaw), glm::vec3(0.0f, 1.0f, 0.0f));
 		glm::quat r_quat = glm::angleAxis(glm::radians(q_roll), glm::vec3(0.0f, 0.0f, 1.0f));
 
-
 		glm::quat quaternion = p_quat * y_quat * r_quat;
 
 		M = T * glm::toMat4(quaternion);
+
 	}
 
-	T = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -15.0f));
-	M = T * glm::rotate(glm::mat4(1.0f), rotate_y, glm::vec3(0.0f, 0.0f, 1.0f));
+
+	//T = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -15.0f));
+	//M = T * glm::rotate(glm::mat4(1.0f), rotate_y, glm::vec3(0.0f, 0.0f, 1.0f));
+
+
 	// update uniforms & draw
 	glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, glm::value_ptr(persp_proj));
 	glUniformMatrix4fv(view_mat_location, 1, GL_FALSE, glm::value_ptr(view));
 	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(M));
-	glDrawArrays(GL_TRIANGLES, 0, mesh_data.mPointCount);
+	glDrawArrays(GL_TRIANGLES, 0, plane.mPointCount);
 
 	glutSwapBuffers();
 }
@@ -360,8 +394,14 @@ void init()
 {
 	// Set up the shaders
 	GLuint shaderProgramID = CompileShaders();
+
 	// load mesh into a vertex buffer array
-	generateObjectBufferMesh();
+	plane = load_mesh(PLANE);
+	vao0 = generateObjectBufferMesh(plane);
+
+
+	/*prop = load_mesh(PROPELLER);
+	vao1 = generateObjectBufferMesh(prop);*/
 
 }
 
@@ -374,6 +414,8 @@ void keypress(unsigned char key, int x, int y) {
 		q_flag = true;
 		e_flag = false;
 
+		std::cout << "rotation type = quaternion" << endl;
+
 		break;
 
 		// euler rotation
@@ -381,39 +423,79 @@ void keypress(unsigned char key, int x, int y) {
 		e_flag = true;
 		q_flag = false;
 
+		std::cout << "rotation type = euler" << endl;
+
 		break;
 
 	case 'p':
 		if (e_flag) {
-			pitch += 0.2f;
+			pitch += 0.1f;
+
+			std::cout << "pitch_e" << endl;
 		}
 
 		else {
 			q_pitch += 2.0f;
+
+			std::cout << "pitch_q" << endl;
 		}
 
 		break;
 
 	case 'r':
 		if (e_flag) {
-			roll += 0.2f;
+			roll += 0.1f;
+
+			std::cout << "roll_e" << endl;
 		}
 
 		else {
 			q_roll += 2.0f;
+
+			std::cout << "roll_q" << endl;
 		}
 
 		break;
 
 	case 'y':
 		if (e_flag) {
-			yaw += 0.2f;
+			yaw += 0.1f;
+
+			std::cout << "yaw_e" << endl;
 		}
 
 		else {
 			q_yaw += 2.0f;
+
+			std::cout << "yaw_q" << endl;
 		}
 
+		break;
+
+		// camera movement
+	case 'i':
+		projType = 0;
+		break;
+	case 'o':
+		projType = 1;
+		break;
+	case 'z':
+		cameraPos += glm::vec3(0.0f, 0.0f, 2.0f);
+		break;
+	case 'x':
+		cameraPos -= glm::vec3(0.0f, 0.0f, 2.0f);
+		break;
+	case 'w':
+		cameraPos += glm::vec3(0.0f, 2.0f, 0.0f);
+		break;
+	case 's':
+		cameraPos -= glm::vec3(0.0f, 2.0f, 0.0f);
+		break;
+	case 'a':
+		cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp));
+		break;
+	case 'd':
+		cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp));
 		break;
 
 	}
