@@ -8,25 +8,40 @@
 #include <string>
 #include <stdio.h>
 #include <math.h>
-#include <vector> // STL dynamic memory.
+#include <vector> 
 
 // OpenGL includes
 #include <GL/glew.h>
 #include <GL/freeglut.h>
 
 // Assimp includes
-#include <assimp/cimport.h> // scene importer
-#include <assimp/scene.h> // collects data
-#include <assimp/postprocess.h> // various extra operations
+#include <assimp/cimport.h> 
+#include <assimp/scene.h> 
+#include <assimp/postprocess.h> 
 
 // Project includes
 #include "maths_funcs.h"
+#include "draw_spider.h"
+#include "structs.h"
+#include "animation.h"
+#include "lighting.h"
+#include "skybox.h"
 
+// GLM includes
 #include "glm/glm.hpp"
 #include "glm/gtc/matrix_transform.hpp"
 #include "glm/gtc/type_ptr.hpp"
 
+// Meshes to load
 #define GROUND "C:/Users/aogra/Desktop/mtass/mtass/ground.obj"
+#define TRUNK "C:/Users/aogra/Desktop/mtass/mtass/trunk.obj"
+#define LEAVES "C:/Users/aogra/Desktop/mtass/mtass/leaves.obj"
+#define MOON "C:/Users/aogra/Desktop/mtass/mtass/moon.obj"
+#define FIRE "C:/Users/aogra/Desktop/mtass/mtass/fire.obj"
+#define MOUNTAIN "C:/Users/aogra/Desktop/mtass/mtass/mountain.obj"
+
+//spider body
+#define SPIDER "C:/Users/aogra/Desktop/mtass/mtass/spiders.obj"
 #define BODY "C:/Users/aogra/Desktop/mtass/mtass/spider_body.obj"
 #define JOINT "C:/Users/aogra/Desktop/mtass/mtass/small_joint.obj"
 
@@ -50,76 +65,55 @@
 #define RIGHT_LEG_3l "C:/Users/aogra/Desktop/mtass/mtass/R3l.obj"
 #define RIGHT_LEG_4l "C:/Users/aogra/Desktop/mtass/mtass/R4l.obj"
 
-typedef struct
-{
-	size_t mPointCount = 0;
-	std::vector<vec3> mVertices;
-	std::vector<vec3> mNormals;
-	std::vector<vec2> mTextureCoords;
-} ModelData;
+// Image includes
+#include "stb_image.h"
 
 using namespace std;
+using std::vector;
 
-ModelData ground, body, joint, leg_1, leg_1l, leg_2, leg_2l, leg_3, leg_3l, leg_4, leg_4l,
-							   leg_5, leg_5l, leg_6, leg_6l, leg_7, leg_7l, leg_8, leg_8l;
+//structs
+mesh m;
+scale_tree s;
+rotation r, r_spider_game;
+vertex_array_object vao;
 
+spider_data sp1, sp2, sp3, sp4, sp5, sp6, sp7, sp8, sp9, sp10, sp11, sp12;
+
+GLfloat translate_x = 0.0f;
+GLfloat translate_y_sg = 0.0f;
+GLfloat translate_y = 0.5f;
+GLfloat translate_z = 25.0f;
+float rotate_body = 180.0f;
+
+unsigned int textures[8];
+GLuint skybox_vao, skybox_vbo, floor_vao, particle_vao, particle_vbo;
 GLuint loc1, loc2, loc3;
-GLuint vao0, vao1, vao2, vao2l, vao3, vao3l, vao4, vao4l, vao5, vao5l, vao6, vao6l,
-								vao7, vao7l, vao8, vao8l, vao9, vao9l, vao10, vao10l;
-				   
+GLuint programID, floor_programID, sky_programID, light_programID, particleID;
 
-GLuint programID, floor_programID;
-int width = 1000;
-int height = 800;
-int i = 0;
+int width = 800;
+int height = 600;
 
-GLfloat translate_x = -12.0f;
-GLfloat translate_y = 0.0f;
-GLfloat translate_z = -12.0f;
-
-GLfloat rotate_body = 0.0f;
-
-GLfloat ry_j1 = 10.0f;
-GLfloat ry_j2 = 0.0f;
-GLfloat ry_j3 = 10.0f;
-GLfloat ry_j4 = 0.0f;
-
-GLfloat rz_j2 = 10.0f;
-GLfloat rz_j3 = -10.0f;
-GLfloat rz_j4 = -10.0f;
-GLfloat rz_j5 = 10.0f;
-
-GLfloat ry_j5 = 0.0f;
-GLfloat ry_j6 = 0.0f;
-GLfloat ry_j7 = 0.0f;
-GLfloat ry_j8 = 0.0f;
-
-GLfloat rl_j1 = 0.0f;
-GLfloat rl_j2 = 0.0f;
-GLfloat rl_j3 = 0.0f;
-GLfloat rl_j4 = 0.0f;
-
-GLfloat rl_j5 = 0.0f;
-GLfloat rl_j6 = 0.0f;
-GLfloat rl_j7 = 0.0f;
-GLfloat rl_j8 = 0.0f;
-
-GLfloat scale_x = 1.0f;
-GLfloat scale_y = 1.0f;
-GLfloat scale_z = 1.0f;
-
-int projType = 0;
-
-glm::vec3 cameraPos = glm::vec3(0.0f, 15.0f, 64.0f);
+glm::vec3 cameraPos = glm::vec3(0.0f, 23.0f, 56.0f);
 glm::vec3 cameraFront = glm::vec3(0.0f, -15.0f, -30.0f);
 glm::vec3 cameraUp = glm::vec3(0.0f, 1.0f, 0.0f);
+
+int projType = 0;
 
 bool firstMouse = true;
 GLfloat yaw = -90.0f;
 GLfloat pitch = 0.0f;
 float lastX = 800.0f / 2.0;
 float lastY = 600.0f / 2.0;
-float fov = 45.0f;
+
+unsigned int nr_new_particles = 2;
+float dt = 0.25;
+glm::vec3 offset = glm::vec3(0.0, 0.5, 0.0);
+unsigned int lastUsedParticle = 0;
+unsigned int nr_particles = 10;
+std::vector<Particle> particles;
+Particle particle;
+
+bool turn;
 
 #pragma region MESH LOADING
 /*----------------------------------------------------------------------------
@@ -157,7 +151,7 @@ ModelData load_mesh(const char* file_name) {
 			if (mesh->HasPositions()) {
 				const aiVector3D* vp = &(mesh->mVertices[v_i]);
 				modelData.mVertices.push_back(vec3(vp->x, vp->y, vp->z));
-				
+
 			}
 			if (mesh->HasNormals()) {
 				const aiVector3D* vn = &(mesh->mNormals[v_i]);
@@ -166,7 +160,7 @@ ModelData load_mesh(const char* file_name) {
 			if (mesh->HasTextureCoords(0)) {
 				const aiVector3D* vt = &(mesh->mTextureCoords[0][v_i]);
 				modelData.mTextureCoords.push_back(vec2(vt->x, vt->y));
-	
+
 			}
 			if (mesh->HasTangentsAndBitangents()) {
 				/* You can extract tangents and bitangents here              */
@@ -253,10 +247,25 @@ GLuint compileShaders(int shaderID) {
 		AddShader(progID, "C:/Users/aogra/Desktop/mtass/mtass/vertexShader.txt", GL_VERTEX_SHADER);
 		AddShader(progID, "C:/Users/aogra/Desktop/mtass/mtass/fragmentShader.txt", GL_FRAGMENT_SHADER);
 	}
-	
-	else {
+
+	else if (shaderID == 1) {
 		AddShader(progID, "C:/Users/aogra/Desktop/mtass/mtass/floor_vs.txt", GL_VERTEX_SHADER);
 		AddShader(progID, "C:/Users/aogra/Desktop/mtass/mtass/floor_fs.txt", GL_FRAGMENT_SHADER);
+	}
+
+	else if (shaderID == 2) {
+		AddShader(progID, "C:/Users/aogra/Desktop/mtass/mtass/sky_vs.txt", GL_VERTEX_SHADER);
+		AddShader(progID, "C:/Users/aogra/Desktop/mtass/mtass/sky_fs.txt", GL_FRAGMENT_SHADER);
+	}
+
+	else if (shaderID == 3) {
+		AddShader(progID, "C:/Users/aogra/Desktop/mtass/mtass/light_source_vs.txt", GL_VERTEX_SHADER);
+		AddShader(progID, "C:/Users/aogra/Desktop/mtass/mtass/light_source_fs.txt", GL_FRAGMENT_SHADER);
+	}
+
+	else {
+		AddShader(progID, "C:/Users/aogra/Desktop/mtass/mtass/particle_vs.txt", GL_VERTEX_SHADER);
+		AddShader(progID, "C:/Users/aogra/Desktop/mtass/mtass/particle_fs.txt", GL_FRAGMENT_SHADER);
 	}
 
 	GLint Success = 0;
@@ -292,7 +301,7 @@ GLuint compileShaders(int shaderID) {
 #pragma endregion SHADER FCNS
 
 #pragma region VBO_FUNCTIONS
-void generateObjectBufferMesh(GLuint vao, ModelData mesh_data) {
+void generateObjectBufferMesh1(GLuint vao, ModelData mesh_data, GLuint programID) {
 	/*----------------------------------------------------------------------------
 	LOAD MESH HERE AND COPY INTO BUFFERS
 	----------------------------------------------------------------------------*/
@@ -302,8 +311,8 @@ void generateObjectBufferMesh(GLuint vao, ModelData mesh_data) {
 
 	unsigned int vp_vbo = 0;
 	unsigned int vn_vbo = 0;
+	unsigned int vt_vbo = 0;
 
-	//mesh 1
 	loc1 = glGetAttribLocation(programID, "vertex_position");
 	loc2 = glGetAttribLocation(programID, "vertex_normal");
 	loc3 = glGetAttribLocation(programID, "vertex_texture");
@@ -316,6 +325,10 @@ void generateObjectBufferMesh(GLuint vao, ModelData mesh_data) {
 	glBindBuffer(GL_ARRAY_BUFFER, vn_vbo);
 	glBufferData(GL_ARRAY_BUFFER, mesh_data.mPointCount * sizeof(vec3), &mesh_data.mNormals[0], GL_STATIC_DRAW);
 
+	glGenBuffers(1, &vt_vbo);
+	glBindBuffer(GL_ARRAY_BUFFER, vt_vbo);
+	glBufferData(GL_ARRAY_BUFFER, mesh_data.mPointCount * sizeof(vec2), &mesh_data.mTextureCoords[0], GL_STATIC_DRAW);
+
 	glBindVertexArray(vao);
 
 	glEnableVertexAttribArray(loc1);
@@ -326,9 +339,12 @@ void generateObjectBufferMesh(GLuint vao, ModelData mesh_data) {
 	glBindBuffer(GL_ARRAY_BUFFER, vn_vbo);
 	glVertexAttribPointer(loc2, 3, GL_FLOAT, GL_FALSE, 0, NULL);
 
+	glEnableVertexAttribArray(loc3);
+	glBindBuffer(GL_ARRAY_BUFFER, vt_vbo);
+	glVertexAttribPointer(loc3, 2, GL_FLOAT, GL_FALSE, 0, NULL);
+
 }
 #pragma endregion VBO_FUNCTIONS
-
 
 void display() {
 
@@ -338,8 +354,18 @@ void display() {
 	glClearColor(0.4f, 0.4f, 0.4f, 1.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	//setting up projection matrix
-	glm::mat4 persp_proj = glm::perspective(glm::radians(fov), (float)width / (float)height, 1.0f, 100.0f);
+	glm::mat4 persp_proj = glm::perspective(glm::radians(45.0f), (float)width / (float)height, 1.0f, 100.0f);
+	glm::mat4 view = glm::mat4(1.0f);
+
+	// draw spider
+
+	glUseProgram(programID);
+
+	int matrix_location = glGetUniformLocation(programID, "model");
+	int view_mat_location = glGetUniformLocation(programID, "view");
+	int proj_mat_location = glGetUniformLocation(programID, "proj");
+	int tex_loc = glGetUniformLocation(programID, "tex_num");
+
 	if (projType == 0) {
 		persp_proj = glm::perspective(45.0f, (float)width / (float)height, 1.0f, 100.0f);
 	}
@@ -350,620 +376,243 @@ void display() {
 
 	//setting up camera
 	//lookAt(position, target, up vector);
-	glm::mat4 view = glm::mat4(1.0f);
 	view = glm::lookAt(cameraPos, cameraPos + cameraFront, cameraUp);
-
-	glUseProgram(floor_programID);
-	int floor_matrix_location = glGetUniformLocation(floor_programID, "model");
-	int floor_view_mat_location = glGetUniformLocation(floor_programID, "view");
-	int floor_proj_mat_location = glGetUniformLocation(floor_programID, "proj");
-
-	//floor
-	glm::mat4 gnd = glm::mat4(1.0f);
-	glUniformMatrix4fv(floor_matrix_location, 1, GL_FALSE, glm::value_ptr(gnd));
-	glUniformMatrix4fv(floor_proj_mat_location, 1, GL_FALSE, glm::value_ptr(persp_proj));
-	glUniformMatrix4fv(floor_view_mat_location, 1, GL_FALSE, glm::value_ptr(view));
-	glBindVertexArray(vao0);
-	glDrawArrays(GL_TRIANGLES, 0, ground.mPointCount);
-	
-	glUseProgram(programID);
-	int matrix_location = glGetUniformLocation(programID, "model");
-	int view_mat_location = glGetUniformLocation(programID, "view");
-	int proj_mat_location = glGetUniformLocation(programID, "proj");
 
 	glUniformMatrix4fv(proj_mat_location, 1, GL_FALSE, glm::value_ptr(persp_proj));
 	glUniformMatrix4fv(view_mat_location, 1, GL_FALSE, glm::value_ptr(view));
 
-	//body of spider (root)
-	glm::mat4 model = glm::mat4(1.0f);
-	glm::mat4 R = glm::mat4(1.0f);
+	s.scale_x = 0.6f;
+	s.scale_y = 0.6f;
+	s.scale_z = 0.6f;
+
+	draw_spider(sp1.tx, translate_y, sp1.tz, sp1.rotate_body, s, textures[6], 6, tex_loc, matrix_location, vao, r, m);
+	draw_spider(sp2.tx, translate_y, sp2.tz, sp2.rotate_body, s, textures[6], 6, tex_loc, matrix_location, vao, r, m);
+	draw_spider(sp3.tx, translate_y, sp3.tz, sp3.rotate_body, s, textures[6], 6, tex_loc, matrix_location, vao, r, m);
+
+	draw_spider(sp4.tx, translate_y, sp4.tz, sp4.rotate_body, s, textures[6], 6, tex_loc, matrix_location, vao, r, m);
+	draw_spider(sp5.tx, translate_y, sp5.tz, sp5.rotate_body, s, textures[6], 6, tex_loc, matrix_location, vao, r, m);
+	draw_spider(sp6.tx, translate_y, sp6.tz, sp6.rotate_body, s, textures[6], 6, tex_loc, matrix_location, vao, r, m);
+
+	draw_spider(sp7.tx, translate_y, sp7.tz, sp7.rotate_body, s, textures[6], 6, tex_loc, matrix_location, vao, r, m);
+	draw_spider(sp8.tx, translate_y, sp8.tz, sp8.rotate_body, s, textures[6], 6, tex_loc, matrix_location, vao, r, m);
+	draw_spider(sp9.tx, translate_y, sp9.tz, sp9.rotate_body, s, textures[6], 6, tex_loc, matrix_location, vao, r, m);
+
+	draw_spider(sp10.tx, translate_y, sp10.tz, sp10.rotate_body, s, textures[6], 6, tex_loc, matrix_location, vao, r, m);
+	draw_spider(sp11.tx, translate_y, sp11.tz, sp11.rotate_body, s, textures[6], 6, tex_loc, matrix_location, vao, r, m);
+	draw_spider(sp12.tx, translate_y, sp12.tz, sp12.rotate_body, s, textures[6], 6, tex_loc, matrix_location, vao, r, m);
+
+	s.scale_x = 1.0f;
+	s.scale_y = 1.0f;
+	s.scale_z = 1.0f;
+
+	draw_spider(translate_x, translate_y, translate_z, rotate_body, s, textures[7], 7, tex_loc, matrix_location, vao, r, m);
+
+	fire_lighting(programID, view);
+	spider_lighting(programID, view);
+
+
+	// draw ground plane
+
+	glUseProgram(floor_programID);
+
+	glm::mat4 gnd = glm::mat4(1.0f);
+	glm::mat4 S = glm::mat4(1.0f);
 	glm::mat4 T = glm::mat4(1.0f);
-	T = glm::translate(glm::mat4(1.0f), glm::vec3(translate_x, translate_y, translate_z));
-	R = glm::rotate(glm::mat4(1.0f), rotate_body, glm::vec3(0.0f, 1.0f, 0.0f));
-	model = glm::scale(glm::mat4(1.0f), glm::vec3(scale_x, scale_y, scale_z));
-	model = T * R * model;
-
-	glm::mat4 global = model;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global));
-	glBindVertexArray(vao1);
-	glDrawArrays(GL_TRIANGLES, 0, body.mPointCount);
-
-#pragma region LEFT LEGS
-	//joint 1
-	glm::mat4 joint1 = glm::mat4(1.0f);
-	glm::mat4 Rj1 = glm::mat4(1.0f);
-	glm::mat4 Tj1 = glm::mat4(1.0f);
-	Rj1 = glm::rotate(glm::mat4(1.0f), ry_j1, glm::vec3(1.0f, 0.0f, 0.0f));
-	Tj1 = glm::translate(glm::mat4(1.0f), glm::vec3(-0.6f, 1.85f, 0.2f));
-	joint1 = Tj1 * Rj1;
-
-	glm::mat4 global0 = model * joint1;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global0));
-	glBindVertexArray(vao8);
-	glDrawArrays(GL_TRIANGLES, 0, joint.mPointCount);
-
-	//leg 1
-	glm::mat4 leg1 = glm::mat4(1.0f);
-	leg1 = glm::translate(glm::mat4(1.0f), glm::vec3(0.6f, -1.85f, -0.2f));
-	
-	glm::mat4 global1 = model * joint1 * leg1;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global1));
-	glBindVertexArray(vao2);
-	glDrawArrays(GL_TRIANGLES, 0, leg_1.mPointCount);
-
-	//lower joint 1
-	glm::mat4 joint1l = glm::mat4(1.0f);
-	glm::mat4 Rj1l = glm::mat4(1.0f);
-	glm::mat4 Tj1l = glm::mat4(1.0f);
-	Rj1l = glm::rotate(glm::mat4(1.0f), rl_j1, glm::vec3(1.0f, 0.0f, 0.0f));
-	Tj1l = glm::translate(glm::mat4(1.0f), glm::vec3(-0.15f, 2.9f, 1.8f));
-	joint1l = Tj1l * Rj1l;
-
-	glm::mat4 global0l = model * joint1 * leg1 * joint1l;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global0l));
-	glBindVertexArray(vao8);
-	glDrawArrays(GL_TRIANGLES, 0, joint.mPointCount);
-
-	//lower leg 1
-	glm::mat4 leg1l = glm::mat4(1.0f);
-	leg1l = glm::translate(glm::mat4(1.0f), glm::vec3(0.15f, -2.9f, -1.8f));
-
-	glm::mat4 global1l = model * joint1 * leg1 * joint1l * leg1l;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global1l));
-	glBindVertexArray(vao2l);
-	glDrawArrays(GL_TRIANGLES, 0, leg_1l.mPointCount);
-
-	/*********************************************************************************************/
-
-	//joint 2
-	glm::mat4 joint2 = glm::mat4(1.0f);
-	glm::mat4 Rj2 = glm::mat4(1.0f);
-	glm::mat4 Ry2 = glm::mat4(1.0f);
-	glm::mat4 Tj2 = glm::mat4(1.0f);
-	Ry2 = glm::rotate(glm::mat4(1.0f), rz_j2, glm::vec3(0.0f, 1.0f, 0.0f));
-	Rj2 = glm::rotate(glm::mat4(1.0f), ry_j2, glm::vec3(0.0f, 0.0f, 1.0f));
-	Tj2 = glm::translate(glm::mat4(1.0f), glm::vec3(-0.6f, 1.85f, -0.2f));
-	joint2 = Tj2 * Rj2 * Ry2;
-
-	glm::mat4 global2 = model * joint2;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global2));
-	glBindVertexArray(vao8);
-	glDrawArrays(GL_TRIANGLES, 0, joint.mPointCount);
-
-	//leg 2
-	glm::mat4 leg2 = glm::mat4(1.0f);
-	leg2 = glm::translate(glm::mat4(1.0f), glm::vec3(0.6f, -1.85f, 0.2f));
-
-	glm::mat4 global3 = model * joint2 * leg2;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global3));
-	glBindVertexArray(vao3);
-	glDrawArrays(GL_TRIANGLES, 0, leg_2.mPointCount);
-
-	//lower joint 2
-	glm::mat4 joint2l = glm::mat4(1.0f);
-	glm::mat4 Rj2l = glm::mat4(1.0f);
-	glm::mat4 Tj2l = glm::mat4(1.0f);
-	Rj2l = glm::rotate(glm::mat4(1.0f), rl_j2, glm::vec3(0.0f, 0.0f, 1.0f));
-	Tj2l = glm::translate(glm::mat4(1.0f), glm::vec3(0.35f, 3.25f, 0.57f));
-	joint2l = Tj2l * Rj2l;
-
-	glm::mat4 global2l = model * joint2 * leg2 * joint2l;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global2l));
-	glBindVertexArray(vao8);
-	glDrawArrays(GL_TRIANGLES, 0, joint.mPointCount);
-
-	//lower leg 2
-	glm::mat4 leg2l = glm::mat4(1.0f);
-	leg2l = glm::translate(glm::mat4(1.0f), glm::vec3(-0.35f, -3.25f, -0.57f));
-
-	glm::mat4 global3l = model * joint2 * leg2 * joint2l * leg2l;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global3l));
-	glBindVertexArray(vao3l);
-	glDrawArrays(GL_TRIANGLES, 0, leg_2l.mPointCount);
-
-	/*********************************************************************************************/
-
-	//joint 3
-	glm::mat4 joint3 = glm::mat4(1.0f);
-	glm::mat4 Rj3 = glm::mat4(1.0f);
-	glm::mat4 Ry3 = glm::mat4(1.0f);
-	glm::mat4 Tj3 = glm::mat4(1.0f);
-	Ry3 = glm::rotate(glm::mat4(1.0f), rz_j3, glm::vec3(0.0f, 1.0f, 0.0f));
-	Rj3 = glm::rotate(glm::mat4(1.0f), ry_j3, glm::vec3(0.0f, 0.0f, 1.0f));
-	Tj3 = glm::translate(glm::mat4(1.0f), glm::vec3(-0.6f, 1.85f, -0.55f));
-	joint3 = Tj3 * Rj3 * Ry3;
-
-	glm::mat4 global4 = model * joint3;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global4));
-	glBindVertexArray(vao8);
-	glDrawArrays(GL_TRIANGLES, 0, joint.mPointCount);
-
-	//leg 3
-	glm::mat4 leg3 = glm::mat4(1.0f);
-	leg3 = glm::translate(glm::mat4(1.0f), glm::vec3(0.6f, -1.85f, 0.55f));
-	
-	glm::mat4 global5 = model * joint3 * leg3;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global5));
-	glBindVertexArray(vao4);
-	glDrawArrays(GL_TRIANGLES, 0, leg_3.mPointCount);
-
-	// lower joint 3
-	glm::mat4 joint3l = glm::mat4(1.0f);
-	glm::mat4 Rj3l = glm::mat4(1.0f);
-	glm::mat4 Tj3l = glm::mat4(1.0f);
-	Rj3l = glm::rotate(glm::mat4(1.0f), rl_j3, glm::vec3(0.0f, 0.0f, 1.0f));
-	Tj3l = glm::translate(glm::mat4(1.0f), glm::vec3(0.89f, 3.55f, -1.06f));
-	joint3l = Tj3l * Rj3l;
-
-	glm::mat4 global4l = model * joint3 * leg3 * joint3l;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global4l));
-	glBindVertexArray(vao8);
-	glDrawArrays(GL_TRIANGLES, 0, joint.mPointCount);
-
-	// lower leg 3
-	glm::mat4 leg3l = glm::mat4(1.0f);
-	leg3l = glm::translate(glm::mat4(1.0f), glm::vec3(-0.89f, -3.55f, 1.06f));
-
-	glm::mat4 global5l = model * joint3 * leg3 * joint3l * leg3l;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global5l));
-	glBindVertexArray(vao4l);
-	glDrawArrays(GL_TRIANGLES, 0, leg_3l.mPointCount);
-
-	/*********************************************************************************************/
-
-	//joint 4
-	glm::mat4 joint4 = glm::mat4(1.0f);
-	glm::mat4 Rj4 = glm::mat4(1.0f);
-	glm::mat4 Tj4 = glm::mat4(1.0f);
-	Rj4 = glm::rotate(glm::mat4(1.0f), ry_j4, glm::vec3(1.0f, 0.0f, 0.0f));
-	Tj4 = glm::translate(glm::mat4(1.0f), glm::vec3(-0.6f, 1.85f, -0.8f));
-	joint4 = Tj4 * Rj4;
-
-	glm::mat4 global6 = model * joint4;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global6));
-	glBindVertexArray(vao8);
-	glDrawArrays(GL_TRIANGLES, 0, joint.mPointCount);
-
-	//leg 4
-	glm::mat4 leg4 = glm::mat4(1.0f);
-	leg4 = glm::translate(glm::mat4(1.0f), glm::vec3(0.6f, -1.85f, 0.8f));
-
-	glm::mat4 global7 = model * joint4 * leg4;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global7));
-	glBindVertexArray(vao5);
-	glDrawArrays(GL_TRIANGLES, 0, leg_4.mPointCount);
-
-	// lower joint 4
-	glm::mat4 joint4l = glm::mat4(1.0f);
-	glm::mat4 Rj4l = glm::mat4(1.0f);
-	glm::mat4 Tj4l = glm::mat4(1.0f);
-	Rj4l = glm::rotate(glm::mat4(1.0f), rl_j4, glm::vec3(1.0f, 0.0f, 0.0f));
-	Tj4l = glm::translate(glm::mat4(1.0f), glm::vec3(-0.12f, 4.27f, -1.9f));
-	joint4l = Tj4l * Rj4l;
-
-	glm::mat4 global6l = model * joint4 * leg4 * joint4l;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global6l));
-	glBindVertexArray(vao8);
-	glDrawArrays(GL_TRIANGLES, 0, joint.mPointCount);
-
-	// lower leg 4
-	glm::mat4 leg4l = glm::mat4(1.0f);
-	leg4l = glm::translate(glm::mat4(1.0f), glm::vec3(0.12f, -4.27f, 1.9f));
-
-	glm::mat4 global7l = model * joint4 * leg4 * joint4l * leg4l;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global7l));
-	glBindVertexArray(vao5l);
-	glDrawArrays(GL_TRIANGLES, 0, leg_4l.mPointCount);
-#pragma endregion LEFT LEGS
-	
-#pragma region RIGHT LEGS
-	//joint 5
-	glm::mat4 joint5 = glm::mat4(1.0f);
-	glm::mat4 Rj5 = glm::mat4(1.0f);
-	glm::mat4 Tj5 = glm::mat4(1.0f);
-	Rj5 = glm::rotate(glm::mat4(1.0f), ry_j5, glm::vec3(1.0f, 0.0f, 0.0f));
-	Tj5 = glm::translate(glm::mat4(1.0f), glm::vec3(-1.35f, 1.85f, 0.2f));
-	joint5 = Tj5 * Rj5;
-
-	glm::mat4 global8 = model * joint5;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global8));
-	glBindVertexArray(vao8);
-	glDrawArrays(GL_TRIANGLES, 0, joint.mPointCount);
-
-	//leg 5
-	glm::mat4 leg5 = glm::mat4(1.0f);
-	leg5 = glm::translate(glm::mat4(1.0f), glm::vec3(1.35f, -1.85f, -0.2f));
-	
-	glm::mat4 global9 = model * joint5 * leg5;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global9));
-	glBindVertexArray(vao6);
-	glDrawArrays(GL_TRIANGLES, 0, leg_5.mPointCount);
-
-	// lower joint 5
-	glm::mat4 joint5l = glm::mat4(1.0f);
-	glm::mat4 Rj5l = glm::mat4(1.0f);
-	glm::mat4 Tj5l = glm::mat4(1.0f);
-	Rj5l = glm::rotate(glm::mat4(1.0f), rl_j5, glm::vec3(1.0f, 0.0f, 0.0f));
-	Tj5l = glm::translate(glm::mat4(1.0f), glm::vec3(-1.78f, 2.9f, 1.8f));
-	joint5l = Tj5l * Rj5l;
-
-	glm::mat4 global8l = model * joint5 * leg5 * joint5l;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global8l));
-	glBindVertexArray(vao8);
-	glDrawArrays(GL_TRIANGLES, 0, joint.mPointCount);
-
-	// lower leg 5
-	glm::mat4 leg5l = glm::mat4(1.0f);
-	leg5l = glm::translate(glm::mat4(1.0f), glm::vec3(1.78f, -2.9f, -1.8f));
-
-	glm::mat4 global9l = model * joint5 * leg5 * joint5l * leg5l;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global9l));
-	glBindVertexArray(vao6l);
-	glDrawArrays(GL_TRIANGLES, 0, leg_5l.mPointCount);
-
-	/*********************************************************************************************/
-
-	//joint 6
-	glm::mat4 joint6 = glm::mat4(1.0f);
-	glm::mat4 Rj6 = glm::mat4(1.0f);
-	glm::mat4 Ry6 = glm::mat4(1.0f);
-	glm::mat4 Tj6 = glm::mat4(1.0f);
-	Ry6 = glm::rotate(glm::mat4(1.0f), rz_j4, glm::vec3(0.0f, 1.0f, 0.0f));
-	Rj6 = glm::rotate(glm::mat4(1.0f), ry_j6, glm::vec3(0.0f, 0.0f, 1.0f));
-	Tj6 = glm::translate(glm::mat4(1.0f), glm::vec3(-1.35f, 1.85f, -0.2f));
-	joint6 = Tj6 * Rj6 * Ry6;
-
-	glm::mat4 global10 = model * joint6;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global10));
-	glBindVertexArray(vao8);
-	glDrawArrays(GL_TRIANGLES, 0, joint.mPointCount);
-
-	//leg 6
-	glm::mat4 leg6 = glm::mat4(1.0f);
-	leg6 = glm::translate(glm::mat4(1.0f), glm::vec3(1.35f, -1.85f, 0.2f));
-	
-	glm::mat4 global11 = model * joint6 * leg6;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global11));
-	glBindVertexArray(vao7);
-	glDrawArrays(GL_TRIANGLES, 0, leg_6.mPointCount);
-
-	// lower joint 6
-	glm::mat4 joint6l = glm::mat4(1.0f);
-	glm::mat4 Rj6l = glm::mat4(1.0f);
-	glm::mat4 Tj6l = glm::mat4(1.0f);
-	Rj6l = glm::rotate(glm::mat4(1.0f), rl_j6, glm::vec3(0.0f, 0.0f, 1.0f));
-	Tj6l = glm::translate(glm::mat4(1.0f), glm::vec3(-2.27f, 3.25f, 0.57f));
-	joint6l = Tj6l * Rj6l;
-
-	glm::mat4 global10l = model * joint6 * leg6 * joint6l;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global10l));
-	glBindVertexArray(vao8);
-	glDrawArrays(GL_TRIANGLES, 0, joint.mPointCount);
-
-	// lower leg 6
-	glm::mat4 leg6l = glm::mat4(1.0f);
-	leg6l = glm::translate(glm::mat4(1.0f), glm::vec3(2.27f, -3.25f, -0.57f));
-
-	glm::mat4 global11l = model * joint6 * leg6 * joint6l * leg6l;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global11l));
-	glBindVertexArray(vao7l);
-	glDrawArrays(GL_TRIANGLES, 0, leg_6l.mPointCount);
-
-	/*********************************************************************************************/
-
-	//joint 7
-	glm::mat4 joint7 = glm::mat4(1.0f);
-	glm::mat4 Rj7 = glm::mat4(1.0f);
-	glm::mat4 Ry7 = glm::mat4(1.0f);
-	glm::mat4 Tj7 = glm::mat4(1.0f);
-	Ry7 = glm::rotate(glm::mat4(1.0f), rz_j5, glm::vec3(0.0f, 1.0f, 0.0f));
-	Rj7 = glm::rotate(glm::mat4(1.0f), ry_j7, glm::vec3(0.0f, 0.0f, 1.0f));
-	Tj7 = glm::translate(glm::mat4(1.0f), glm::vec3(-1.35f, 1.85f, -0.55f));
-	joint7 = Tj7 * Rj7 * Ry7;
-
-	glm::mat4 global12 = model * joint7;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global12));
-	glBindVertexArray(vao8);
-	glDrawArrays(GL_TRIANGLES, 0, joint.mPointCount);
-
-	//leg 7
-	glm::mat4 leg7 = glm::mat4(1.0f);
-	leg7 = glm::translate(glm::mat4(1.0f), glm::vec3(1.35f, -1.85f, 0.55f));
-	
-	glm::mat4 global13 = model * joint7 * leg7;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global13));
-	glBindVertexArray(vao9);
-	glDrawArrays(GL_TRIANGLES, 0, leg_7.mPointCount);
-
-	// lower joint 7
-	glm::mat4 joint7l = glm::mat4(1.0f);
-	glm::mat4 Rj7l = glm::mat4(1.0f);
-	glm::mat4 Tj7l = glm::mat4(1.0f);
-	Rj7l = glm::rotate(glm::mat4(1.0f), rl_j7, glm::vec3(0.0f, 0.0f, 1.0f));
-	Tj7l = glm::translate(glm::mat4(1.0f), glm::vec3(-2.82f, 3.55f, -1.06f));
-	joint7l = Tj7l * Rj7l;
-
-	glm::mat4 global12l = model * joint7 * leg7 * joint7l;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global12l));
-	glBindVertexArray(vao8);
-	glDrawArrays(GL_TRIANGLES, 0, joint.mPointCount);
-
-	// lower leg 7
-	glm::mat4 leg7l = glm::mat4(1.0f);
-	leg7l = glm::translate(glm::mat4(1.0f), glm::vec3(2.82f, -3.55f, 1.06f));
-
-	glm::mat4 global13l = model * joint7 * leg7 * joint7l * leg7l;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global13l));
-	glBindVertexArray(vao9l);
-	glDrawArrays(GL_TRIANGLES, 0, leg_7l.mPointCount);
-
-	/*********************************************************************************************/
-
-	//joint 8
-	glm::mat4 joint8 = glm::mat4(1.0f);
-	glm::mat4 Rj8 = glm::mat4(1.0f);
-	glm::mat4 Tj8 = glm::mat4(1.0f);
-	Rj8 = glm::rotate(glm::mat4(1.0f), ry_j8, glm::vec3(1.0f, 0.0f, 0.0f));
-	Tj8 = glm::translate(glm::mat4(1.0f), glm::vec3(-1.35f, 1.85f, -0.8f));
-	joint8 = Tj8 * Rj8;
-
-	glm::mat4 global14 = model * joint8;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global14));
-	glBindVertexArray(vao8);
-	glDrawArrays(GL_TRIANGLES, 0, joint.mPointCount);
-
-	//leg 8
-	glm::mat4 leg8 = glm::mat4(1.0f);
-	leg8 = glm::translate(glm::mat4(1.0f), glm::vec3(1.35f, -1.85f, 0.8f));
-
-	glm::mat4 global15 = model * joint8 * leg8;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global15));
-	glBindVertexArray(vao10);
-	glDrawArrays(GL_TRIANGLES, 0, leg_8.mPointCount);
-
-	// lower joint 8
-	glm::mat4 joint8l = glm::mat4(1.0f);
-	glm::mat4 Rj8l = glm::mat4(1.0f);
-	glm::mat4 Tj8l = glm::mat4(1.0f);
-	Rj8l = glm::rotate(glm::mat4(1.0f), rl_j8, glm::vec3(1.0f, 0.0f, 0.0f));
-	Tj8l = glm::translate(glm::mat4(1.0f), glm::vec3(-1.8f, 4.27f, -1.9f));
-	joint8l = Tj8l * Rj8l;
-
-	glm::mat4 global14l = model * joint8 * leg8 * joint8l;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global14l));
-	glBindVertexArray(vao8);
-	glDrawArrays(GL_TRIANGLES, 0, joint.mPointCount);
-
-	// lower leg 8
-	glm::mat4 leg8l = glm::mat4(1.0f);
-	leg8l = glm::translate(glm::mat4(1.0f), glm::vec3(1.8f, -4.27f, 1.9f));
-
-	glm::mat4 global15l = model * joint8 * leg8 * joint8l * leg8l;
-	glUniformMatrix4fv(matrix_location, 1, GL_FALSE, glm::value_ptr(global15l));
-	glBindVertexArray(vao10l);
-	glDrawArrays(GL_TRIANGLES, 0, leg_8l.mPointCount);
-#pragma endregion RIGHT LEGS
+	S = glm::scale(glm::mat4(1.0f), glm::vec3(2.5, 1, 2.5));
+	T = glm::translate(glm::mat4(1.0f), glm::vec3(0, -0.5, 0));
+	gnd = gnd * T * S;
+
+	int model_loc = glGetUniformLocation(floor_programID, "model");
+	int view_loc = glGetUniformLocation(floor_programID, "view");
+	int proj_loc = glGetUniformLocation(floor_programID, "proj");
+	int texnum_loc = glGetUniformLocation(floor_programID, "tex_num");
+
+	glUniform1i(texnum_loc, 0);
+
+	glUniformMatrix4fv(proj_loc, 1, GL_FALSE, glm::value_ptr(persp_proj));
+	glUniformMatrix4fv(view_loc, 1, GL_FALSE, glm::value_ptr(view));
+	glUniformMatrix4fv(model_loc, 1, GL_FALSE, glm::value_ptr(gnd));
+
+	glActiveTexture(GL_TEXTURE0);
+	glBindTexture(GL_TEXTURE_2D, textures[0]);
+
+	glBindVertexArray(floor_vao);
+	glDrawArrays(GL_TRIANGLES, 0, m.ground.mPointCount);
+	glBindVertexArray(0);
+
+
+	// draw trees
+
+	s.scale_x = 1.0f;
+	s.scale_y = 1.0f;
+	s.scale_z = 1.0f;
+
+
+	draw_tree(-12.0f, 0.0f, -24.0f, s, textures[1], textures[2], texnum_loc, model_loc, vao, m);
+	draw_tree(-24.0f, 0.0f, -12.0f, s, textures[1], textures[2], texnum_loc, model_loc, vao, m);
+	draw_tree(12.0f, 0.0f, -24.0f, s, textures[1], textures[2], texnum_loc, model_loc, vao, m);
+	draw_tree(-24.0f, 0.0f, 12.0f, s, textures[1], textures[2], texnum_loc, model_loc, vao, m);
+	draw_tree(24.0f, 0.0f, 12.0f, s, textures[1], textures[2], texnum_loc, model_loc, vao, m);
+	draw_tree(24.0f, 0.0f, -12.0f, s, textures[1], textures[2], texnum_loc, model_loc, vao, m);
+
+	s.scale_x = 1.5f;
+	s.scale_y = 1.5f;
+	s.scale_z = 1.5f;
+
+	draw_tree(-24.0f, 0.0f, -24.0f, s, textures[1], textures[2], texnum_loc, model_loc, vao, m);
+	draw_tree(24.0f, 0.0f, -24.0f, s, textures[1], textures[2], texnum_loc, model_loc, vao, m);
+	draw_tree(-24.0f, 0.0f, 18.0f, s, textures[1], textures[2], texnum_loc, model_loc, vao, m);
+	draw_tree(24.0f, 0.0f, 18.0f, s, textures[1], textures[2], texnum_loc, model_loc, vao, m);
+	draw_tree(0.0f, 0.0f, -24.0f, s, textures[1], textures[2], texnum_loc, model_loc, vao, m);
+	draw_tree(24.0f, 0.0f, 0.0f, s, textures[1], textures[2], texnum_loc, model_loc, vao, m);
+	draw_tree(-24.0f, 0.0f, 0.0f, s, textures[1], textures[2], texnum_loc, model_loc, vao, m);
+
+	env_lighting(floor_programID, view);
+	fire_lighting(floor_programID, view);
+
+
+	// draw light sources - fire and moon
+
+	glUseProgram(light_programID);
+
+	int light_loc = glGetUniformLocation(light_programID, "model");
+	int light_proj = glGetUniformLocation(light_programID, "proj");
+	int light_view = glGetUniformLocation(light_programID, "view");
+	int light_colour_loc = glGetUniformLocation(light_programID, "lightColor");
+	int texnum = glGetUniformLocation(light_programID, "tex_num");
+
+	// moon 
+	glm::vec3 moon_color = glm::vec3(0.9f, 0.9f, 0.9f);
+
+	glUniformMatrix4fv(light_proj, 1, GL_FALSE, glm::value_ptr(persp_proj));
+	glUniformMatrix4fv(light_view, 1, GL_FALSE, glm::value_ptr(view));
+	glUniform3fv(light_colour_loc, 1, glm::value_ptr(moon_color));
+
+	glm::mat4 moon_obj = glm::mat4(1.0f);
+	glm::mat4 trans_moon = glm::mat4(1.0f);
+	glm::mat4 scale_moon = glm::mat4(1.0f);
+	trans_moon = glm::translate(glm::mat4(1.0f), glm::vec3(-5.0f, 16.0f, 0.0f));
+	scale_moon = glm::scale(glm::mat4(1.0f), glm::vec3(2.0f, 2.0f, 2.0f));
+	moon_obj = moon_obj * scale_moon * trans_moon;
+
+	glUniform1i(texnum, 4);
+	glUniformMatrix4fv(light_loc, 1, GL_FALSE, glm::value_ptr(moon_obj));
+
+	glActiveTexture(GL_TEXTURE4);
+	glBindTexture(GL_TEXTURE_2D, textures[4]);
+
+	glBindVertexArray(vao.mn);
+	glDrawArrays(GL_TRIANGLES, 0, m.moon.mPointCount);
+	glBindVertexArray(0);
+
+	//fire
+	glm::mat4 fire_obj = glm::mat4(1.0f);
+	glm::mat4 trans_fire = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, 0.0f));
+	glm::mat4 scale_fire = glm::scale(glm::mat4(1.0f), glm::vec3(5.0f, 5.0f, 5.0f));
+	fire_obj = fire_obj * scale_fire * trans_fire;
+
+	glm::vec3 lightColor;
+	lightColor.y = sin(timeGetTime() * 0.9f);
+	lightColor.z = sin(timeGetTime() * 0.02f);
+
+	glm::vec3 fire_color = glm::vec3(0.7f, lightColor.y, lightColor.z);
+
+	glUniform3fv(light_colour_loc, 1, glm::value_ptr(fire_color));
+
+	glUniform1i(texnum, 5);
+	glUniformMatrix4fv(light_loc, 1, GL_FALSE, glm::value_ptr(fire_obj));
+
+	glActiveTexture(GL_TEXTURE5);
+	glBindTexture(GL_TEXTURE_2D, textures[5]);
+
+	glBindVertexArray(vao.fr);
+	glDrawArrays(GL_TRIANGLES, 0, m.fire.mPointCount);
+	glBindVertexArray(0);
+
+
+	// draw skybox
+
+	glDepthFunc(GL_LEQUAL);
+	glUseProgram(sky_programID);
+
+	int projSkyLoc = glGetUniformLocation(sky_programID, "proj");
+	int viewSKyLoc = glGetUniformLocation(sky_programID, "view");
+
+	glm::mat4 skybox_view = glm::mat4(glm::mat3(view));
+
+	glUniformMatrix4fv(projSkyLoc, 1, GL_FALSE, glm::value_ptr(persp_proj));
+	glUniformMatrix4fv(viewSKyLoc, 1, GL_FALSE, glm::value_ptr(skybox_view));
+
+	glBindVertexArray(skybox_vao);
+	glBindTexture(GL_TEXTURE_CUBE_MAP, textures[3]);
+	glDrawArrays(GL_TRIANGLES, 0, 36);
+	glBindVertexArray(0);
+	glDepthFunc(GL_LESS);
 
 	glutSwapBuffers();
 }
 
+static void updateScene() {
 
-bool first_time = true;
-bool backwards = true;
-static void updateScene(int value) {
-	
-	if (backwards) {
-		translate_y += 0.05f;
+	// animates spider legs
+	animate(r, translate_y);
 
-		rz_j2 = 0.0f;
-		rz_j3 = 15.0f;
-		rz_j4 = 0.0f;
-		rz_j5 = 15.0f;
+	// spider movement with collision detection
 
+	// spider 1
+	avoid_spider(translate_x, translate_z, sp1.tx, sp1.tz, sp1.rotate_body);
+	avoid_fire(sp1.tx, sp1.tz, sp1.rotate_body);
 
-		ry_j1 -= 10.0f;
-		ry_j2 += 10.0f;
-		ry_j3 -= 10.0f;
-		ry_j4 += 10.0f;
+	// spider 2
+	avoid_spider(translate_x, translate_z, sp2.tx, sp2.tz, sp2.rotate_body);
+	avoid_fire(sp2.tx, sp2.tz, sp2.rotate_body);
 
-		rl_j1 = 0.0f;
-		rl_j2 = 0.0f;
-		rl_j3 = 10.0f;
-		rl_j4 = 0.0f;
+	// spider 3
+	avoid_spider(translate_x, translate_z, sp3.tx, sp3.tz, sp3.rotate_body);
+	avoid_fire(sp3.tx, sp3.tz, sp3.rotate_body);
 
-		ry_j5 += 10.0f;
-		ry_j6 -= 10.0f;
-		ry_j7 += 10.0f;
-		ry_j8 -= 10.0f;
+	// spider 4
+	avoid_spider(translate_x, translate_z, sp4.tx, sp4.tz, sp4.rotate_body);
+	avoid_fire(sp4.tx, sp4.tz, sp4.rotate_body);
 
-		rl_j5 = -40.0f;
-		rl_j6 = 0.0f;
-		rl_j7 = -10.0f;
-		rl_j8 = 20.0f;
+	// spider 5
+	avoid_spider(translate_x, translate_z, sp5.tx, sp5.tz, sp5.rotate_body);
+	avoid_fire(sp5.tx, sp5.tz, sp5.rotate_body);
 
-		backwards = false;
-	}
+	// spider 6
+	avoid_spider(translate_x, translate_z, sp6.tx, sp6.tz, sp6.rotate_body);
+	avoid_fire(sp6.tx, sp6.tz, sp6.rotate_body);
 
-	else {
-		translate_y -= 0.05f;
+	// spider 7
+	avoid_spider(translate_x, translate_z, sp7.tx, sp7.tz, sp7.rotate_body);
+	avoid_fire(sp7.tx, sp7.tz, sp7.rotate_body);
 
-		rz_j2 = 15.0f;
-		rz_j3 = 0.0f;
-		rz_j4 = 15.0f;
-		rz_j5 = 0.0f;
+	// spider 8
+	avoid_spider(translate_x, translate_z, sp8.tx, sp8.tz, sp8.rotate_body);
+	avoid_fire(sp8.tx, sp8.tz, sp8.rotate_body);
 
+	// spider 9
+	avoid_spider(translate_x, translate_z, sp9.tx, sp9.tz, sp9.rotate_body);
+	avoid_fire(sp9.tx, sp9.tz, sp9.rotate_body);
 
-		ry_j1 += 10.0f;
-		ry_j2 -= 10.0f;
-		ry_j3 += 10.0f;
-		ry_j4 -= 10.0f;
+	// spider 10
+	avoid_spider(translate_x, translate_z, sp10.tx, sp10.tz, sp10.rotate_body);
+	avoid_fire(sp10.tx, sp10.tz, sp10.rotate_body);
 
-		rl_j1 = -40.0f;
-		rl_j2 = 10.0f;
-		rl_j3 = 0.0f;
-		rl_j4 = 20.0f;
+	// spider 11
+	avoid_spider(translate_x, translate_z, sp11.tx, sp11.tz, sp11.rotate_body);
+	avoid_fire(sp11.tx, sp11.tz, sp11.rotate_body);
 
-		ry_j5 -= 10.0f;
-		ry_j6 += 10.0f;
-		ry_j7 -= 10.0f;
-		ry_j8 += 10.0f;
-
-		rl_j5 = 0.0f;
-		rl_j6 = -10.0f;
-		rl_j7 = 0.0f;
-		rl_j8 = 0.0f;
-
-		backwards = true;
-	}
-	
-	if (translate_x == -12.0f && -12.0f <= translate_z < 12.0f) {
-
-		if (!first_time) {
-			rotate_body = 360.0f;
-		}
-
-		translate_z += 1.0f;
-		first_time = false;
-	}
-
-	if (translate_z == 12.0f && -12.0f <= translate_x < 12.0f) {
-		rotate_body = 90.0f;
-		translate_x += 1.0f;
-	}
-
-	if (translate_x == 12.0f && -12.0f < translate_z <= 12.0f) {
-		rotate_body = 180.0f;
-		translate_z -= 1.0f;
-	}
-
-	if (translate_z == -12.0f && -12.0f < translate_x <= 12.0f) {
-		rotate_body = 270.0f;
-		translate_x -= 1.0f;
-	}
-	
-	// Draw the next frame
+	// spider 12
+	avoid_spider(translate_x, translate_z, sp12.tx, sp12.tz, sp12.rotate_body);
+	avoid_fire(sp12.tx, sp12.tz, sp12.rotate_body);
 
 	glutPostRedisplay();
-	glutTimerFunc(175, updateScene, 0);
-}
-
-void init() {
-
-	// Set up the shaders
-	programID = compileShaders(0);
-	floor_programID = compileShaders(1);
-	// load mesh into a vertex buffer array
-
-	ground = load_mesh(GROUND);
-	glGenVertexArrays(1, &vao0);
-	generateObjectBufferMesh(vao0, ground);
-
-	joint = load_mesh(JOINT);
-	glGenVertexArrays(1, &vao8);
-	generateObjectBufferMesh(vao8, joint);
-
-	body = load_mesh(BODY);
-	glGenVertexArrays(1, &vao1);
-	generateObjectBufferMesh(vao1, body);
-
-
-	leg_1 = load_mesh(LEFT_LEG_1);
-	glGenVertexArrays(1, &vao2);
-	generateObjectBufferMesh(vao2, leg_1);
-
-	leg_1l = load_mesh(LEFT_LEG_1l);
-	glGenVertexArrays(1, &vao2l);
-	generateObjectBufferMesh(vao2l, leg_1l);
-
-	leg_2 = load_mesh(LEFT_LEG_2);
-	glGenVertexArrays(1, &vao3);
-	generateObjectBufferMesh(vao3, leg_2);
-
-	leg_2l = load_mesh(LEFT_LEG_2l);
-	glGenVertexArrays(1, &vao3l);
-	generateObjectBufferMesh(vao3l, leg_2l);
-
-	leg_3 = load_mesh(LEFT_LEG_3);
-	glGenVertexArrays(1, &vao4);
-	generateObjectBufferMesh(vao4, leg_3);
-
-	leg_3l = load_mesh(LEFT_LEG_3l);
-	glGenVertexArrays(1, &vao4l);
-	generateObjectBufferMesh(vao4l, leg_3l);
-
-	leg_4 = load_mesh(LEFT_LEG_4);
-	glGenVertexArrays(1, &vao5);
-	generateObjectBufferMesh(vao5, leg_4);
-
-	leg_4l = load_mesh(LEFT_LEG_4l);
-	glGenVertexArrays(1, &vao5l);
-	generateObjectBufferMesh(vao5l, leg_4l);
-
-	leg_5 = load_mesh(RIGHT_LEG_1);
-	glGenVertexArrays(1, &vao6);
-	generateObjectBufferMesh(vao6, leg_5);
-
-	leg_5l = load_mesh(RIGHT_LEG_1l);
-	glGenVertexArrays(1, &vao6l);
-	generateObjectBufferMesh(vao6l, leg_5l);
-
-	leg_6 = load_mesh(RIGHT_LEG_2);
-	glGenVertexArrays(1, &vao7);
-	generateObjectBufferMesh(vao7, leg_6);
-
-	leg_6l = load_mesh(RIGHT_LEG_2l);
-	glGenVertexArrays(1, &vao7l);
-	generateObjectBufferMesh(vao7l, leg_6l);
-
-	leg_7 = load_mesh(RIGHT_LEG_3);
-	glGenVertexArrays(1, &vao9);
-	generateObjectBufferMesh(vao9, leg_7);
-
-	leg_7l = load_mesh(RIGHT_LEG_3l);
-	glGenVertexArrays(1, &vao9l);
-	generateObjectBufferMesh(vao9l, leg_7l);
-
-	leg_8 = load_mesh(RIGHT_LEG_4);
-	glGenVertexArrays(1, &vao10);
-	generateObjectBufferMesh(vao10, leg_8);
-
-	leg_8l = load_mesh(RIGHT_LEG_4l);
-	glGenVertexArrays(1, &vao10l);
-	generateObjectBufferMesh(vao10l, leg_8l);
-
 }
 
 void keypress(unsigned char key, int x, int y) {
 
 	switch (key) {
-	case 'y':
-		translate_y += 2.0f;
-		break;
-	case 'h':
-		rl_j1 += 2.0f;
-		break;
-	case 'j':
-		rl_j1 -= 2.0f;
 
 	case 'p':
 		projType = 0;
@@ -974,22 +623,46 @@ void keypress(unsigned char key, int x, int y) {
 
 
 	case 'z':
+		// move camera backwards
 		cameraPos += glm::vec3(0.0f, 0.0f, 2.0f);
 		break;
 	case 'x':
+		// move camera forewards
 		cameraPos -= glm::vec3(0.0f, 0.0f, 2.0f);
 		break;
 	case 'w':
+		// move camera upwards
 		cameraPos += glm::vec3(0.0f, 2.0f, 0.0f);
 		break;
 	case 's':
+		// move camera downwards
 		cameraPos -= glm::vec3(0.0f, 2.0f, 0.0f);
 		break;
 	case 'a':
+		// move camera left
 		cameraPos -= glm::normalize(glm::cross(cameraFront, cameraUp));
 		break;
 	case 'd':
+		// move camera right
 		cameraPos += glm::normalize(glm::cross(cameraFront, cameraUp));
+		break;
+
+		// chaser spider controls
+	case 'i':
+		// walk forwards
+		walk_spider(translate_x, translate_z, rotate_body);
+		break;
+	case 'j':
+		// turn left
+		rotate_body += 10.0f;
+		break;
+	case 'l':
+		// turn right
+		rotate_body -= 10.0f;
+		break;
+	case 'k':
+		// face opposite direction
+		rotate_body += 180.0f;
 		break;
 	}
 
@@ -997,7 +670,10 @@ void keypress(unsigned char key, int x, int y) {
 }
 
 void mouseclick(int xpos, int ypos) {
-	
+
+	//button = GLUT_LEFT_BUTTON;
+	//state = GLUT_DOWN;
+
 	if (firstMouse)
 	{
 		lastX = xpos;
@@ -1029,6 +705,241 @@ void mouseclick(int xpos, int ypos) {
 	cameraFront = glm::normalize(direction);
 }
 
+void init() {
+
+	// Set up the shaders
+	programID = compileShaders(0);
+	floor_programID = compileShaders(1);
+	sky_programID = compileShaders(2);
+	light_programID = compileShaders(3);
+	particleID = compileShaders(4);
+
+	GLfloat skyboxVertices[] = {
+		// positions          
+		-1.0f,  1.0f, -1.0f,
+		-1.0f, -1.0f, -1.0f,
+		 1.0f, -1.0f, -1.0f,
+		 1.0f, -1.0f, -1.0f,
+		 1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+
+		-1.0f, -1.0f,  1.0f,
+		-1.0f, -1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f, -1.0f,
+		-1.0f,  1.0f,  1.0f,
+		-1.0f, -1.0f,  1.0f,
+
+		 1.0f, -1.0f, -1.0f,
+		 1.0f, -1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f, -1.0f,
+		 1.0f, -1.0f, -1.0f,
+
+		-1.0f, -1.0f,  1.0f,
+		-1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f, -1.0f,  1.0f,
+		-1.0f, -1.0f,  1.0f,
+
+		-1.0f,  1.0f, -1.0f,
+		 1.0f,  1.0f, -1.0f,
+		 1.0f,  1.0f,  1.0f,
+		 1.0f,  1.0f,  1.0f,
+		-1.0f,  1.0f,  1.0f,
+		-1.0f,  1.0f, -1.0f,
+
+		-1.0f, -1.0f, -1.0f,
+		-1.0f, -1.0f,  1.0f,
+		 1.0f, -1.0f, -1.0f,
+		 1.0f, -1.0f, -1.0f,
+		-1.0f, -1.0f,  1.0f,
+		 1.0f, -1.0f,  1.0f
+	};
+
+	glGenVertexArrays(1, &skybox_vao);
+	glGenBuffers(1, &skybox_vbo);
+	glBindVertexArray(skybox_vao);
+	glBindBuffer(GL_ARRAY_BUFFER, skybox_vbo);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(skyboxVertices), &skyboxVertices, GL_STATIC_DRAW);
+	glEnableVertexAttribArray(0);
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+
+
+	vector<const char*> faces;
+
+	faces.push_back("C:/Users/aogra/Desktop/mtass/mtass/starry_sky.jpg");
+	faces.push_back("C:/Users/aogra/Desktop/mtass/mtass/starry_sky.jpg");
+	faces.push_back("C:/Users/aogra/Desktop/mtass/mtass/starry_sky.jpg");
+	faces.push_back("C:/Users/aogra/Desktop/mtass/mtass/starry_sky.jpg");
+	faces.push_back("C:/Users/aogra/Desktop/mtass/mtass/starry_sky.jpg");
+	faces.push_back("C:/Users/aogra/Desktop/mtass/mtass/starry_sky.jpg");
+
+
+	m.spider = load_mesh(SPIDER);
+	glGenVertexArrays(1, &vao.spd);
+	generateObjectBufferMesh1(vao.spd, m.spider, floor_programID);
+
+	m.moon = load_mesh(MOON);
+	glGenVertexArrays(1, &vao.mn);
+	generateObjectBufferMesh1(vao.mn, m.moon, light_programID);
+
+	m.fire = load_mesh(FIRE);
+	glGenVertexArrays(1, &vao.fr);
+	generateObjectBufferMesh1(vao.fr, m.fire, light_programID);
+
+	m.trunk = load_mesh(TRUNK);
+	glGenVertexArrays(1, &vao.t);
+	generateObjectBufferMesh1(vao.t, m.trunk, floor_programID);
+
+	m.leaves = load_mesh(LEAVES);
+	glGenVertexArrays(1, &vao.l);
+	generateObjectBufferMesh1(vao.l, m.leaves, floor_programID);
+
+	m.ground = load_mesh(GROUND);
+	glGenVertexArrays(1, &floor_vao);
+	generateObjectBufferMesh1(floor_vao, m.ground, floor_programID);
+
+	m.joint = load_mesh(JOINT);
+	glGenVertexArrays(1, &vao.j);
+	generateObjectBufferMesh1(vao.j, m.joint, programID);
+
+	m.body = load_mesh(BODY);
+	glGenVertexArrays(1, &vao.b);
+	generateObjectBufferMesh1(vao.b, m.body, programID);
+
+
+	m.leg_1 = load_mesh(LEFT_LEG_1);
+	glGenVertexArrays(1, &vao.ul1);
+	generateObjectBufferMesh1(vao.ul1, m.leg_1, programID);
+
+	m.leg_1l = load_mesh(LEFT_LEG_1l);
+	glGenVertexArrays(1, &vao.ll1);
+	generateObjectBufferMesh1(vao.ll1, m.leg_1l, programID);
+
+	m.leg_2 = load_mesh(LEFT_LEG_2);
+	glGenVertexArrays(1, &vao.ul2);
+	generateObjectBufferMesh1(vao.ul2, m.leg_2, programID);
+
+	m.leg_2l = load_mesh(LEFT_LEG_2l);
+	glGenVertexArrays(1, &vao.ll2);
+	generateObjectBufferMesh1(vao.ll2, m.leg_2l, programID);
+
+	m.leg_3 = load_mesh(LEFT_LEG_3);
+	glGenVertexArrays(1, &vao.ul3);
+	generateObjectBufferMesh1(vao.ul3, m.leg_3, programID);
+
+	m.leg_3l = load_mesh(LEFT_LEG_3l);
+	glGenVertexArrays(1, &vao.ll3);
+	generateObjectBufferMesh1(vao.ll3, m.leg_3l, programID);
+
+	m.leg_4 = load_mesh(LEFT_LEG_4);
+	glGenVertexArrays(1, &vao.ul4);
+	generateObjectBufferMesh1(vao.ul4, m.leg_4, programID);
+
+	m.leg_4l = load_mesh(LEFT_LEG_4l);
+	glGenVertexArrays(1, &vao.ll4);
+	generateObjectBufferMesh1(vao.ll4, m.leg_4l, programID);
+
+	m.leg_5 = load_mesh(RIGHT_LEG_1);
+	glGenVertexArrays(1, &vao.ur1);
+	generateObjectBufferMesh1(vao.ur1, m.leg_5, programID);
+
+	m.leg_5l = load_mesh(RIGHT_LEG_1l);
+	glGenVertexArrays(1, &vao.lr1);
+	generateObjectBufferMesh1(vao.lr1, m.leg_5l, programID);
+
+	m.leg_6 = load_mesh(RIGHT_LEG_2);
+	glGenVertexArrays(1, &vao.ur2);
+	generateObjectBufferMesh1(vao.ur2, m.leg_6, programID);
+
+	m.leg_6l = load_mesh(RIGHT_LEG_2l);
+	glGenVertexArrays(1, &vao.lr2);
+	generateObjectBufferMesh1(vao.lr2, m.leg_6l, programID);
+
+	m.leg_7 = load_mesh(RIGHT_LEG_3);
+	glGenVertexArrays(1, &vao.ur3);
+	generateObjectBufferMesh1(vao.ur3, m.leg_7, programID);
+
+	m.leg_7l = load_mesh(RIGHT_LEG_3l);
+	glGenVertexArrays(1, &vao.lr3);
+	generateObjectBufferMesh1(vao.lr3, m.leg_7l, programID);
+
+	m.leg_8 = load_mesh(RIGHT_LEG_4);
+	glGenVertexArrays(1, &vao.ur4);
+	generateObjectBufferMesh1(vao.ur4, m.leg_8, programID);
+
+	m.leg_8l = load_mesh(RIGHT_LEG_4l);
+	glGenVertexArrays(1, &vao.lr4);
+	generateObjectBufferMesh1(vao.lr4, m.leg_8l, programID);
+
+	textures[3] = load_skybox(faces);
+
+	textures[0] = load_textures(floor_programID, "C:/Users/aogra/Desktop/mtass/mtass/foliage.jpg", "grass", 0, GL_TEXTURE0);
+	textures[1] = load_textures(floor_programID, "C:/Users/aogra/Desktop/mtass/mtass/bark.jpg", "bark", 1, GL_TEXTURE1);
+	textures[2] = load_textures(floor_programID, "C:/Users/aogra/Desktop/mtass/mtass/foliage.jpg", "foliage", 2, GL_TEXTURE2);
+	textures[4] = load_textures(light_programID, "C:/Users/aogra/Desktop/mtass/mtass/moon_tex.jpg", "moon_tex", 4, GL_TEXTURE4);
+	textures[5] = load_textures(light_programID, "C:/Users/aogra/Desktop/mtass/mtass/fire.jpg", "fire_tex", 5, GL_TEXTURE5);
+	textures[6] = load_textures(programID, "C:/Users/aogra/Desktop/mtass/mtass/spider_tex1.jpg", "spider_tex1", 6, GL_TEXTURE6);
+	textures[7] = load_textures(programID, "C:/Users/aogra/Desktop/mtass/mtass/spider_tex.jpg", "spider_tex2", 7, GL_TEXTURE7);
+
+#pragma region SPIDERDATA
+	sp1.tx = 8.0f;
+	sp1.tz = 8.0f;
+
+	sp2.tx = 12.0f;
+	sp2.tz = 4.0f;
+
+	sp3.tx = 12.0f;
+	sp3.tz = -4.0f;
+
+	sp4.tx = 8.0f;
+	sp4.tz = -8.0f;
+
+	sp5.tx = 4.0f;
+	sp5.tz = -12.0f;
+
+	sp6.tx = -4.0f;
+	sp6.tz = -12.0f;
+
+	sp7.tx = -8.0f;
+	sp7.tz = -8.0f;
+
+	sp8.tx = -12.0f;
+	sp8.tz = -4.0f;
+
+	sp9.tx = -12.0f;
+	sp9.tz = 4.0f;
+
+	sp10.tx = -8.0f;
+	sp10.tz = 8.0f;
+
+	sp11.tx = -4.0f;
+	sp11.tz = 12.0f;
+
+	sp12.tx = 4.0f;
+	sp12.tz = 12.0f;
+
+	sp1.rotate_body = 0.0f;
+	sp2.rotate_body = 150.0f;
+	sp3.rotate_body = 180.0f;
+	sp4.rotate_body = 210.0f;
+	sp5.rotate_body = 240.0f;
+	sp6.rotate_body = 270.0f;
+	sp7.rotate_body = 300.0f;
+	sp8.rotate_body = 330.0f;
+	sp9.rotate_body = 0.0f;
+	sp10.rotate_body = 30.0f;
+	sp11.rotate_body = 60.0f;
+	sp12.rotate_body = 90.0f;
+
+
+#pragma endregion SPIDERDATA
+
+}
+
 int main(int argc, char** argv) {
 
 	// Set up the window
@@ -1039,9 +950,10 @@ int main(int argc, char** argv) {
 
 	// Tell glut where the display function is
 	glutDisplayFunc(display);
-	//glutIdleFunc(updateScene);
+	glutIdleFunc(updateScene);
 	glutKeyboardFunc(keypress);
-	glutPassiveMotionFunc(mouseclick);
+	//glutKeyboardFunc(change_light);
+	glutMotionFunc(mouseclick);
 
 	// A call to glewInit() must be done after glut is initialized!
 	GLenum res = glewInit();
@@ -1054,7 +966,7 @@ int main(int argc, char** argv) {
 	// Set up your objects and shaders
 	init();
 
-	updateScene(0);
+	//updateScene(0);
 	glutMainLoop();
 
 	return 0;
