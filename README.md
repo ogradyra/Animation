@@ -10,4 +10,4 @@ Screenshot of the plane used in my program:
 ![Screenshot](plane_rotate/plane_bod.PNG)
 
 Link to video demonstrating the features listed above:
-![CS7GV5 Assignment 1 - Plane Rotation](https://youtu.be/mFFI74RhtSU)
+[CS7GV5 Assignment 1 - Plane Rotation](https://youtu.be/mFFI74RhtSU)
